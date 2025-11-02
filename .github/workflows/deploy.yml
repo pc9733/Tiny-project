@@ -12,25 +12,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure SSH (write key + known_hosts)
+      - name: Debug - Check secrets
+        run: |
+          echo "EC2_HOST length: ${#EC2_HOST}"
+          echo "EC2_USER length: ${#EC2_USER}"
+          echo "EC2_HOST (masked): ${{ secrets.EC2_HOST }}"
+          echo "EC2_USER (masked): ${{ secrets.EC2_USER }}"
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+
+      - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          printf "Host *\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+          echo "Host ec2-target" > ~/.ssh/config
+          echo "  HostName ${{ secrets.EC2_HOST }}" >> ~/.ssh/config
+          echo "  User ${{ secrets.EC2_USER }}" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/id_ed25519" >> ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Test SSH Connection
+        run: |
+          ssh ec2-target "echo 'SSH connection successful'; whoami; hostname"
 
       - name: Sync site files to EC2 (/tmp)
         run: |
           sudo apt-get update -y
           sudo apt-get install -y rsync
           rsync -avz --delete \
-            -e "ssh -i ~/.ssh/id_ed25519" \
             ./ \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/mywebsite/
+            ec2-target:/tmp/mywebsite/
 
       - name: Move into Nginx root and reload
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<'EOF'
+          ssh ec2-target <<'EOF'
           set -e
           if ! command -v nginx >/dev/null 2>&1; then
             sudo dnf install -y nginx

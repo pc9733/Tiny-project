@@ -1,0 +1,15 @@
+[Unit]
+Description=Companies API (Flask/Gunicorn)
+After=network.target
+
+[Service]
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/home/ec2-user/companies-api
+Environment=TABLE_NAME=companies
+Environment=AWS_REGION=us-east-1
+ExecStart=/home/ec2-user/companies-api/venv/bin/gunicorn -w 2 -b 127.0.0.1:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

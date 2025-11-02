@@ -65,19 +65,18 @@ jobs:
           # Idempotent Nginx config (root points to /var/www/mywebsite)
           if [ ! -f /etc/nginx/conf.d/mywebsite.conf ]; then
             sudo tee /etc/nginx/conf.d/mywebsite.conf >/dev/null <<CONF
-            server {
-              listen 80;
-              server_name _;
-              root /var/www/mywebsite;
-              index index.html;
-              access_log /var/log/nginx/mywebsite.access.log;
-              error_log  /var/log/nginx/mywebsite.error.log;
-              location / { try_files \$uri \$uri/ =404; }
-            }
+server {
+  listen 80;
+  server_name _;
+  root /var/www/mywebsite;
+  index index.html;
+  access_log /var/log/nginx/mywebsite.access.log;
+  error_log  /var/log/nginx/mywebsite.error.log;
+  location / { try_files \$uri \$uri/ =404; }
+}
 CONF
           fi
 
           sudo nginx -t
           sudo systemctl reload nginx
-          EOF
-
+EOF

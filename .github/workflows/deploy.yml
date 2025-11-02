@@ -7,32 +7,52 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug - Check secrets
+      - name: Debug - Check secrets exist
         run: |
-          echo "EC2_HOST length: ${#EC2_HOST}"
-          echo "EC2_USER length: ${#EC2_USER}"
-          echo "EC2_HOST (masked): ${{ secrets.EC2_HOST }}"
-          echo "EC2_USER (masked): ${{ secrets.EC2_USER }}"
+          if [ -z "$EC2_HOST" ]; then
+            echo "ERROR: EC2_HOST is empty!"
+            exit 1
+          fi
+          if [ -z "$EC2_USER" ]; then
+            echo "ERROR: EC2_USER is empty!"
+            exit 1
+          fi
+          if [ -z "$EC2_SSH_KEY" ]; then
+            echo "ERROR: EC2_SSH_KEY is empty!"
+            exit 1
+          fi
+          echo "All secrets are set"
+          echo "EC2_HOST first char: ${EC2_HOST:0:1}"
+          echo "EC2_USER: ${EC2_USER}"
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_ed25519
+          echo "$EC2_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          echo "Host ec2-target" > ~/.ssh/config
-          echo "  HostName ${{ secrets.EC2_HOST }}" >> ~/.ssh/config
-          echo "  User ${{ secrets.EC2_USER }}" >> ~/.ssh/config
-          echo "  IdentityFile ~/.ssh/id_ed25519" >> ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          cat > ~/.ssh/config <<EOF
+          Host ec2-target
+            HostName ${EC2_HOST}
+            User ${EC2_USER}
+            IdentityFile ~/.ssh/id_ed25519
+            StrictHostKeyChecking no
+          EOF
           chmod 600 ~/.ssh/config
+          cat ~/.ssh/config
 
       - name: Test SSH Connection
         run: |
@@ -42,9 +62,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y rsync
-          rsync -avz --delete \
-            ./ \
-            ec2-target:/tmp/mywebsite/
+          rsync -avz --delete ./ ec2-target:/tmp/mywebsite/
 
       - name: Move into Nginx root and reload
         run: |

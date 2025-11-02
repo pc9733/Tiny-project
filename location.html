@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Company Opportunities — All</title>
+  <title>Company Opportunities — by Location</title>
   <link rel="stylesheet" href="assets/style.css"/>
 </head>
 <body>
   <header class="topbar">
-    <h1>Company Opportunities</h1>
+    <h1 id="title">Company Opportunities</h1>
     <nav class="nav">
-      <a href="index.html" class="active">All</a>
+      <a href="index.html">All</a>
       <a href="locations.html?loc=Gurgaon">Gurgaon</a>
       <a href="locations.html?loc=Gurugram">Gurugram</a>
       <a href="locations.html?loc=Noida">Noida</a>
@@ -44,18 +44,18 @@
     </section>
 
     <p class="muted tip">
-      Data saves in your browser (localStorage). Use Export/Import to back up or move data.
+      Viewing a filtered list. Use the navigation to switch locations or go back to All.
     </p>
   </main>
 
-  <!-- Add/Edit Modal -->
+  <!-- Modal reused -->
   <dialog id="modal">
     <form method="dialog" class="modal">
       <h3 id="modalTitle">Add Company</h3>
       <div class="grid grid-2">
         <div>
           <label>Company</label>
-          <input id="fCompany" type="text" placeholder="e.g. Adobe" required/>
+          <input id="fCompany" type="text" required/>
         </div>
         <div>
           <label>Location</label>
@@ -69,7 +69,7 @@
         </div>
         <div class="grid" style="grid-column:1/-1">
           <label>Careers URL</label>
-          <input id="fUrl" type="text" placeholder="https://company.com/careers" required/>
+          <input id="fUrl" type="text" required/>
         </div>
       </div>
       <div class="row">
@@ -82,7 +82,10 @@
 
   <script src="assets/app.js"></script>
   <script>
-    App.mount({ mode: "all" });  // show all companies
+    const params = new URLSearchParams(location.search);
+    const loc = params.get("loc") || "Gurgaon";
+    document.getElementById("title").textContent = `Company Opportunities — ${loc}`;
+    App.mount({ mode: "filtered", location: loc });
   </script>
 </body>
 </html>

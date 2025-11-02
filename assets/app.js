@@ -362,3 +362,28 @@ const App = (() => {
 
   return { mount };
 })();
+function closeAddModal() {
+  // <dialog id="addDialog"> support
+  const dlg = document.getElementById('addDialog');
+  if (dlg) {
+    if (typeof dlg.close === 'function') dlg.close();
+    dlg.setAttribute('open', ''); // harmless if already closed
+    dlg.removeAttribute('open');
+  }
+  // CSS modal fallback (e.g., class="hidden")
+  const modal = document.getElementById('addModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function resetAddForm() {
+  const form = document.getElementById('companyForm');
+  if (form) form.reset();
+}
+
+function onCancelAdd(e) {
+  if (e) e.preventDefault();
+  resetAddForm();
+  closeAddModal();
+}
+
+document.getElementById('cancelBtn')?.addEventListener('click', onCancelAdd);

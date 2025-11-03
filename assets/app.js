@@ -9,7 +9,7 @@ const App = (() => {
     loading: false,
   };
 
-  const VALID_LOCS = ["gurgaon","gurugram","noida","remote"];
+  const VALID_LOCS = ["gurgaon","gurugram","noida","remote","gurugram and noida"];
 
   // ---------- Utilities ----------
   const uid = () => Math.random().toString(36).slice(2, 10);
@@ -218,7 +218,7 @@ const App = (() => {
       .filter((x) => x.company && x.url && VALID_LOCS.includes(x.location.toLowerCase()));
 
     if (!mapped.length) {
-      alert("No valid rows found (need Company, Location, Careers URL; locations must be Gurgaon/Gurugram/Noida/Remote).");
+      alert("No valid rows found (need Company, Location, Careers URL; locations must be Gurgaon/Gurugram/Noida/Remote/Gurugram and Noida).");
       return;
     }
     await bulkUpsert(mapped);

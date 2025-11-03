@@ -11,11 +11,11 @@
     <h1>Company Opportunities</h1>
     <nav class="nav">
       <a href="index.html" class="active">All</a>
-      <a href="locations.html?loc=Gurgaon">Gurgaon</a>
-      <a href="locations.html?loc=Gurugram">Gurugram</a>
-      <a href="locations.html?loc=Gurugram&Noida ">Gurugram and Noida</a>
-      <a href="locations.html?loc=Noida">Noida</a>
-      <a href="locations.html?loc=Remote">Remote</a>
+      <a href="locations.html?loc=gurgaon">Gurgaon</a>
+      <a href="locations.html?loc=gurgaon">Gurugram</a>
+      <a href="locations.html?loc=gurgaon_noida">Gurgaon + Noida</a>
+      <a href="locations.html?loc=noida">Noida</a>
+      <a href="locations.html?loc=remote">Remote</a>
     </nav>
   </header>
 
@@ -55,36 +55,37 @@
       <h3 id="modalTitle">Add Company</h3>
       <div class="grid grid-2">
         <div>
-          <label>Company</label>
-          <input id="fCompany" type="text" placeholder="e.g. Adobe" required/>
+          <label for="fCompany">Company</label>
+          <input id="fCompany" name="company" type="text" placeholder="e.g. Adobe" required/>
         </div>
         <div>
-          <label>Location</label>
-          <select id="fLocation" required>
+          <label for="fLocation">Location</label>
+          <select id="fLocation" name="location" required>
             <option value="">Select</option>
-            <option>Gurgaon</option>
-            <option>Gurugram</option>
-            <option>Gurugram and Noida</option>
-            <option>Noida</option>
-            <option>Remote</option>
+            <option value="gurgaon">Gurgaon</option>
+            <option value="gurgaon">Gurugram</option>
+            <option value="gurgaon_noida">Gurgaon + Noida</option>
+            <option value="noida">Noida</option>
+            <option value="remote">Remote</option>
           </select>
         </div>
         <div class="grid" style="grid-column:1/-1">
-          <label>Careers URL</label>
-          <input id="fUrl" type="text" placeholder="https://company.com/careers" required/>
+          <label for="fUrl">Careers URL</label>
+          <input id="fUrl" name="url" type="text" placeholder="https://company.com/careers" required/>
         </div>
       </div>
       <div class="row">
         <button class="btn" value="cancel">Cancel</button>
         <button class="btn primary" id="saveBtn" value="default">Save</button>
       </div>
-      <input type="hidden" id="fId"/>
+      <input type="hidden" id="fId" name="id"/>
     </form>
   </dialog>
 
   <script src="assets/app.js"></script>
   <script>
-    App.mount({ mode: "all" });  // show all companies
+    // show all companies
+    App.mount({ mode: "all" });
   </script>
 </body>
 </html>

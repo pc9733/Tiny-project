@@ -2,8 +2,14 @@ name: Deploy to EC2 (Nginx)
 
 on:
   workflow_dispatch:
-    inputs
-    branches: [ "main" ]
+    inputs:
+      target_branch:
+        description: "Branch to run against"
+        type: choice
+        options:
+          - main
+          - develop
+        default: main
 
 jobs:
   deploy:

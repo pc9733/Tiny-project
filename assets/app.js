@@ -23,6 +23,7 @@ const App = (() => {
     const s = String(x||"").trim();
     const low = s.toLowerCase();
     if (low.includes("gurugram") || low.includes("gurgaon")) return "Gurugram";
+    if (low.includes("gurugram and Noida") || low.includes("gurgaon and noida")) return "Gurugram & Noida";
     if (low.includes("noida")) return "Noida";
     if (low.includes("remote") || low.includes("wfh")) return "Remote";
     return s || "Gurugram";

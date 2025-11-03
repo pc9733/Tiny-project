@@ -5,11 +5,12 @@ const App = (() => {
   const state = {
     rows: [],
     mode: "all",        // "all" | "filtered"
-    location: "",       // when mode === "filtered"
+    location: "",       // when mode === "filtered", value is one of the codes below
     loading: false,
   };
 
-  const VALID_LOCS = ["gurgaon","gurugram","noida","remote"];
+  // Canonical location codes we store & send to API
+  const VALID_CODES = ["gurgaon", "noida", "remote", "gurgaon_noida"];
 
   // ---------- Utilities ----------
   const uid = () => Math.random().toString(36).slice(2, 10);
@@ -19,28 +20,45 @@ const App = (() => {
 
   const escapeAttr = (s) => String(s).replace(/"/g, "&quot;");
 
-  function normalizeLoc(x){
-    const s = String(x||"").trim();
-    const low = s.toLowerCase();
-    if (low.includes("gurugram") || low.includes("gurgaon")) return "Gurugram";
-    if (low.includes("gurugram and Noida") || low.includes("gurgaon and noida")) return "Gurugram & Noida";
-    if (low.includes("noida")) return "Noida";
-    if (low.includes("remote") || low.includes("wfh")) return "Remote";
-    return s || "Gurugram";
+  // Map free-text -> canonical code
+  function normalizeLoc(x) {
+    const raw = String(x || "").trim().toLowerCase();
+    if (!raw) return "";
+    if (/\b(gurugram|gurgaon)\b/.test(raw)) {
+      if (raw.includes("noida")) return "gurgaon_noida";
+      return "gurgaon";
+    }
+    if (raw.includes("noida")) return "noida";
+    if (raw.includes("remote") || raw.includes("wfh")) return "remote";
+    // Try to accept already-canonical values
+    if (VALID_CODES.includes(raw)) return raw;
+    return ""; // unknown -> reject during validation
   }
 
-  function setLoading(on){
+  // code -> pretty label for display
+  function prettyLoc(code) {
+    switch ((code || "").toLowerCase()) {
+      case "gurgaon": return "Gurgaon";
+      case "noida": return "Noida";
+      case "remote": return "Remote";
+      case "gurgaon_noida": return "Gurgaon + Noida";
+      default: return code || "";
+    }
+  }
+
+  function setLoading(on) {
     state.loading = !!on;
     const tbody = $("#tbody");
-    if (on && tbody){
+    if (on && tbody) {
       tbody.innerHTML = `<tr><td class="empty" colspan="4">Loading…</td></tr>`;
     }
   }
 
   // ---------- API helpers ----------
-  async function apiList(location) {
-    const url = location ? `/api/companies?location=${encodeURIComponent(location)}` : `/api/companies`;
-    const r = await fetch(url, { headers: { "Accept": "application/json" }});
+  async function apiList(locationCode) {
+    const loc = locationCode ? normalizeLoc(locationCode) : "";
+    const url = loc ? `/api/companies?location=${encodeURIComponent(loc)}` : `/api/companies`;
+    const r = await fetch(url, { headers: { "Accept": "application/json" } });
     if (!r.ok) throw new Error(`List failed: ${r.status}`);
     return await r.json();
   }
@@ -78,7 +96,7 @@ const App = (() => {
     let rows = [...state.rows];
 
     if (state.mode === "filtered" && state.location) {
-      const target = state.location.toLowerCase();
+      const target = (state.location || "").toLowerCase();
       rows = rows.filter((r) => String(r.location || "").toLowerCase() === target);
     }
 
@@ -86,7 +104,7 @@ const App = (() => {
       (r) =>
         !q ||
         (r.company || "").toLowerCase().includes(q) ||
-        (r.location || "").toLowerCase().includes(q) ||
+        prettyLoc(r.location || "").toLowerCase().includes(q) ||
         (r.url || "").toLowerCase().includes(q)
     );
 
@@ -100,15 +118,14 @@ const App = (() => {
         (r) => `
       <tr data-id="${r.id}">
         <td>${escapeHtml(r.company || "")}</td>
-        <td><span class="tag">${escapeHtml(r.location || "")}</span></td>
+        <td><span class="tag">${escapeHtml(prettyLoc(r.location || ""))}</span></td>
         <td><a class="url" href="${escapeAttr(r.url || "")}" target="_blank" rel="noopener">${escapeHtml(r.url || "")}</a></td>
         <td class="actions">
           <button class="btn" data-open="${r.id}">Open</button>
           <button class="btn" data-edit="${r.id}">Edit</button>
           <button class="btn danger" data-del="${r.id}">Delete</button>
         </td>
-      </tr>
-    `
+      </tr>`
       )
       .join("");
   }
@@ -118,7 +135,8 @@ const App = (() => {
     $("#modalTitle").textContent = mode === "edit" ? "Edit Company" : "Add Company";
     $("#fId").value = row?.id || "";
     $("#fCompany").value = row?.company || "";
-    $("#fLocation").value = row?.location || "";
+    // Ensure dropdown shows the canonical code
+    $("#fLocation").value = normalizeLoc(row?.location || "") || "";
     $("#fUrl").value = row?.url || "";
     $("#modal").showModal();
     setTimeout(() => $("#fCompany").focus(), 50);
@@ -127,13 +145,13 @@ const App = (() => {
   async function addOrUpdate(e) {
     e.preventDefault();
     const id = $("#fId").value || uid();
-    const row = {
-      id,
-      company: $("#fCompany").value.trim(),
-      location: $("#fLocation").value,
-      url: $("#fUrl").value.trim(),
-    };
-    if (!row.company || !row.location || !row.url) return;
+    const company = $("#fCompany").value.trim();
+    const locationCode = normalizeLoc($("#fLocation").value);
+    const url = $("#fUrl").value.trim();
+
+    if (!company || !locationCode || !url) return;
+
+    const row = { id, company, location: locationCode, url };
 
     setLoading(true);
     try {
@@ -167,9 +185,9 @@ const App = (() => {
     }
   }
 
-  function pick(obj, keys){
+  function pick(obj, keys) {
     for (const k of keys) {
-      const found = Object.keys(obj).find(h => h.toLowerCase().replace(/\s+/g,'').includes(k));
+      const found = Object.keys(obj).find((h) => h.toLowerCase().replace(/\s+/g, "").includes(k));
       if (found) return String(obj[found]).trim();
     }
     return "";
@@ -189,47 +207,29 @@ const App = (() => {
     const text = await file.text();
     const json = JSON.parse(text);
     if (!Array.isArray(json)) throw new Error("Invalid JSON (need an array)");
-    // normalize & filter
+
     const cleaned = json
-      .map((x) => ({
-        id: x.id || uid(),
-        company: x.company || x.Company || "",
-        location: normalizeLoc(x.location || x.Location || ""),
-        url: x.url || x["Careers URL"] || x.careers || "",
-      }))
-      .filter((x) => x.company && x.url && VALID_LOCS.includes(String(x.location).toLowerCase()));
+      .map((x) => {
+        const company = x.company || x.Company || "";
+        const loc = normalizeLoc(x.location || x.Location || "");
+        const url = x.url || x["Careers URL"] || x.careers || "";
+        return { id: x.id || uid(), company, location: loc, url };
+      })
+      .filter((x) => x.company && x.url && VALID_CODES.includes(x.location));
+
     await bulkUpsert(cleaned);
   }
 
-  async function importExcel(file) {
-    // Requires: <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-    const mapped = rows
-      .map((r) => {
-        const company = pick(r, ["company", "organisation", "organization", "employer", "name"]);
-        const location = normalizeLoc(pick(r, ["location", "city", "region", "area"]));
-        const url = pick(r, ["careersurl", "career", "careers", "jobs", "jobpage", "url", "website"]);
-        return { id: uid(), company, location, url };
-      })
-      .filter((x) => x.company && x.url && VALID_LOCS.includes(x.location.toLowerCase()));
-
-    if (!mapped.length) {
-      alert("No valid rows found (need Company, Location, Careers URL; locations must be Gurgaon/Gurugram/Noida/Remote).");
-      return;
-    }
-    await bulkUpsert(mapped);
+  async function importExcel(_file) {
+    // Disabled unless XLSX lib is added to the page.
+    alert("Excel import requires XLSX library. For now, use JSON Import.");
   }
 
   async function bulkUpsert(items) {
     setLoading(true);
     try {
-      // POST each item sequentially to keep it simple (could batch later)
       for (const it of items) {
-        // de-dup by (company+url): if exists in state, update; else create
+        // de-dup by (company+url)
         const key = (x) => (x.company.toLowerCase() + "|" + x.url.toLowerCase());
         const existing = state.rows.find((r) => key(r) === key(it));
         if (existing) {
@@ -262,7 +262,9 @@ const App = (() => {
 
   async function deleteAllVisible() {
     if (!confirm("Delete ALL visible rows?")) return;
-    const ids = Array.from(document.querySelectorAll("#tbody tr[data-id]")).map((tr) => tr.getAttribute("data-id"));
+    const ids = Array.from(document.querySelectorAll("#tbody tr[data-id]")).map((tr) =>
+      tr.getAttribute("data-id")
+    );
     setLoading(true);
     try {
       for (const id of ids) {
@@ -279,16 +281,13 @@ const App = (() => {
 
   // ---------- Data refresh ----------
   async function refresh() {
-    const locForFetch =
-      state.mode === "filtered" && state.location
-        ? state.location
-        : null;
+    const locForFetch = state.mode === "filtered" && state.location ? state.location : null;
     const items = await apiList(locForFetch);
     // Ensure shape + order (newest first by created_at if present)
     let rows = (items || []).map((x) => ({
       id: x.id,
       company: x.company,
-      location: x.location,
+      location: normalizeLoc(x.location || x.loc || x.Location || x.location_code || ""), // sanitize
       url: x.url,
       created_at: x.created_at || null,
     }));
@@ -299,7 +298,7 @@ const App = (() => {
   // ---------- Mount ----------
   async function mount({ mode = "all", location = "" } = {}) {
     state.mode = mode;
-    state.location = location;
+    state.location = normalizeLoc(location) || "";
 
     // Wire events
     $("#addBtn")?.addEventListener("click", () => openModal("add"));
@@ -307,20 +306,24 @@ const App = (() => {
     $("#search")?.addEventListener("input", (e) => render(e.target.value));
     $("#exportBtn")?.addEventListener("click", exportJSON);
 
-    $("#importJsonFile")?.addEventListener("change", async (e) => {
+    // Your HTML uses a single input#export/importFile — support that ID:
+    $("#importFile")?.addEventListener("change", async (e) => {
       const f = e.target.files[0];
       if (!f) return;
-      try { await importJSON(f); } catch (err) { alert("Import failed: " + err.message); }
-      finally { e.target.value = ""; }
+      try {
+        if (f.name.toLowerCase().endsWith(".json")) {
+          await importJSON(f);
+        } else {
+          await importExcel(f);
+        }
+      } catch (err) {
+        alert("Import failed: " + (err.message || err));
+      } finally {
+        e.target.value = "";
+      }
     });
 
-    $("#importExcelFile")?.addEventListener("change", async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      try { await importExcel(f); } catch (err) { alert("Excel import failed: " + err.message); }
-      finally { e.target.value = ""; }
-    });
-
+    // Table row actions
     document.querySelector("#tbody")?.addEventListener("click", (e) => {
       const openId = e.target.getAttribute("data-open");
       const editId = e.target.getAttribute("data-edit");
@@ -338,13 +341,23 @@ const App = (() => {
       }
     });
 
+    // Dialog cancel handling (method="dialog" auto-closes; we just reset fields)
+    const dlg = $("#modal");
+    dlg?.addEventListener("close", () => {
+      if (dlg.returnValue === "cancel") {
+        $("#fId").value = "";
+        $("#fCompany").value = "";
+        $("#fLocation").value = "";
+        $("#fUrl").value = "";
+      }
+    });
+
     // Initial load
     setLoading(true);
     try {
       await refresh();
       render();
     } catch (err) {
-      // Helpful guidance if API/Nginx not ready
       const tbody = $("#tbody");
       if (tbody) {
         tbody.innerHTML = `<tr><td class="empty" colspan="4">
@@ -363,28 +376,7 @@ const App = (() => {
 
   return { mount };
 })();
-function closeAddModal() {
-  // <dialog id="addDialog"> support
-  const dlg = document.getElementById('addDialog');
-  if (dlg) {
-    if (typeof dlg.close === 'function') dlg.close();
-    dlg.setAttribute('open', ''); // harmless if already closed
-    dlg.removeAttribute('open');
-  }
-  // CSS modal fallback (e.g., class="hidden")
-  const modal = document.getElementById('addModal');
-  if (modal) modal.classList.add('hidden');
-}
 
-function resetAddForm() {
-  const form = document.getElementById('companyForm');
-  if (form) form.reset();
-}
-
-function onCancelAdd(e) {
-  if (e) e.preventDefault();
-  resetAddForm();
-  closeAddModal();
-}
-
-document.getElementById('cancelBtn')?.addEventListener('click', onCancelAdd);
+// Legacy cancel helpers were pointing to non-existing IDs.
+// Your <dialog method="dialog"> closes automatically on the Cancel button.
+// No extra global handlers needed anymore.

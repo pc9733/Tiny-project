@@ -1,7 +1,8 @@
 name: Deploy to EC2 (Nginx)
 
 on:
-  push:
+  workflow_dispatch:
+    inputs
     branches: [ "main" ]
 
 jobs:

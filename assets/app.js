@@ -1,5 +1,5 @@
-// ===== API CONFIG: set BASE if backend runs elsewhere (ensure CORS) =====
-const BASE = ""; // "" = same-origin; set to "https://your-api.example"
+// ===== API CONFIG: adjust if your backend routes differ =====
+const BASE = ""; // same-origin; set to "http://<ip>:<port>" if API on another host
 const API = {
   list:   () => `${BASE}/api/companies`,             // GET -> [{id,company,location}] or {items:[...]}
   create: () => `${BASE}/api/companies`,             // POST body {company,location}
@@ -65,7 +65,7 @@ function render(list = rows) {
     setStatus(`Loaded ${rows.length} record(s).`);
     render();
   } catch (e) {
-    setStatus(""); setError("Failed to load. Check API/CORS.");
+    setStatus(""); setError("Failed to load. Check API route/CORS.");
     rows = []; render();
   }
 })();

@@ -1,91 +1,57 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Company Opportunities — All</title>
-  <link rel="stylesheet" href="assets/style.css"/>
+  <meta charset="utf-8" />
+  <title>Tiny-project — Roles</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 32px; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .controls { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+    input[type="text"] { padding: 10px 12px; border: 1px solid #ccc; border-radius: 10px; min-width: 320px; }
+    .hint { color: #666; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
+    th { background: #fafafa; position: sticky; top: 0; }
+    .empty { padding: 12px; color: #666; }
+    .pill { display: inline-block; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 12px; }
+    footer { margin-top: 24px; font-size: 12px; color: #666; }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <h1>Company Opportunities</h1>
-    <nav class="nav">
-      <a href="index.html" class="active">All</a>
-      <a href="locations.html?loc=gurgaon">Gurgaon</a>
-      <a href="locations.html?loc=gurgaon">Gurugram</a>
-      <a href="locations.html?loc=gurgaon_noida">Gurgaon + Noida</a>
-      <a href="locations.html?loc=noida">Noida</a>
-      <a href="locations.html?loc=remote">Remote</a>
-    </nav>
-  </header>
+  <h1>Tiny-project — Roles</h1>
 
-  <main class="container">
-    <div class="toolbar">
-      <input id="search" class="search" placeholder="Search companies or URL…"/>
-      <button class="btn primary" id="addBtn">+ Add Company</button>
-      <button class="btn" id="exportBtn">Export</button>
-      <label class="btn" for="importFile">Import</label>
-      <input type="file" id="importFile" accept="application/json" hidden>
-    </div>
+  <div class="controls">
+    <input id="locationInput" type="text" placeholder="gurgaon / gurugram and noida / remote" />
+    <span class="hint">Tip: try “gurugram and noida”</span>
+  </div>
 
-    <section class="card">
-      <table id="table">
-        <thead>
-        <tr>
-          <th style="width:34%">Company</th>
-          <th style="width:18%">Location</th>
-          <th>Careers URL</th>
-          <th style="width:180px">Actions</th>
-        </tr>
-        </thead>
-        <tbody id="tbody">
-        <tr><td class="empty" colspan="4">Loading…</td></tr>
-        </tbody>
-      </table>
-    </section>
+  <table aria-label="roles">
+    <thead>
+      <tr>
+        <th style="width:40%">Title</th>
+        <th style="width:30%">Company</th>
+        <th style="width:30%">Location</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <!-- filled by JS -->
+    </tbody>
+  </table>
 
-    <p class="muted tip">
-      Data saves in your browser (localStorage). Use Export/Import to back up or move data.
-    </p>
-  </main>
+  <div id="empty" class="empty" style="display:none">No matching items.</div>
 
-  <!-- Add/Edit Modal -->
-  <dialog id="modal">
-    <form method="dialog" class="modal">
-      <h3 id="modalTitle">Add Company</h3>
-      <div class="grid grid-2">
-        <div>
-          <label for="fCompany">Company</label>
-          <input id="fCompany" name="company" type="text" placeholder="e.g. Adobe" required/>
-        </div>
-        <div>
-          <label for="fLocation">Location</label>
-          <select id="fLocation" name="location" required>
-            <option value="">Select</option>
-            <option value="gurgaon">Gurgaon</option>
-            <option value="gurgaon">Gurugram</option>
-            <option value="gurgaon_noida">Gurgaon + Noida</option>
-            <option value="noida">Noida</option>
-            <option value="remote">Remote</option>
-          </select>
-        </div>
-        <div class="grid" style="grid-column:1/-1">
-          <label for="fUrl">Careers URL</label>
-          <input id="fUrl" name="url" type="text" placeholder="https://company.com/careers" required/>
-        </div>
-      </div>
-      <div class="row">
-        <button class="btn" value="cancel">Cancel</button>
-        <button class="btn primary" id="saveBtn" value="default">Save</button>
-      </div>
-      <input type="hidden" id="fId" name="id"/>
-    </form>
-  </dialog>
+  <!-- If you already have a data source, remove this script block and populate window.DATA before app.js -->
+  <script>
+    // Demo data. Replace with your real data or a fetch() that sets window.DATA.
+    window.DATA = [
+      { id: 1, title: "DevOps Engineer", company: "ACME", location: "Gurugram and Noida" },
+      { id: 2, title: "SRE",             company: "Globex", location: "Remote" },
+      { id: 3, title: "Platform Engg",   company: "Initech", location: "Gurgaon" },
+      { id: 4, title: "Build Engg",      company: "Hooli", location: "Noida" }
+    ];
+  </script>
 
   <script src="assets/app.js"></script>
-  <script>
-    // show all companies
-    App.mount({ mode: "all" });
-  </script>
 </body>
 </html>

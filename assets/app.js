@@ -1,390 +1,80 @@
-// API-backed data layer (Flask + DynamoDB via /api/*)
-const App = (() => {
-  const $ = (s) => document.querySelector(s);
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Tiny-project — Roles</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { --muted:#666; --line:#eee; }
+    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin: 28px; }
+    h1 { margin: 0 0 14px; font-size: 22px; }
+    .controls { display:flex; gap:12px; align-items:center; margin:12px 0 18px; flex-wrap:wrap; }
+    input[type="text"], input[type="search"] { padding:10px 12px; border:1px solid #ccc; border-radius:10px; min-width:300px; }
+    button { padding:10px 14px; border:1px solid #ddd; border-radius:10px; background:#fafafa; cursor:pointer; }
+    button:hover { background:#f2f2f2; }
+    table { width:100%; border-collapse:collapse; margin-top:8px; }
+    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { background:#fafafa; position:sticky; top:0; }
+    .pill { display:inline-block; padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px; }
+    .empty { padding:12px; color:var(--muted); }
+    .muted { color:var(--muted); font-size:12px; }
+    .form { display:none; border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+    .row > label { display:flex; flex-direction:column; gap:6px; flex:1 1 220px; }
+    .row input { padding:10px 12px; border:1px solid #ccc; border-radius:10px; }
+    .form .actions { display:flex; gap:10px; }
+    .actions button.primary { background:#111; color:#fff; border-color:#111; }
+    .actions button.secondary { background:#fff; }
+    .err { color:#a00; font-size:12px; margin-left:8px; }
+  </style>
+</head>
+<body>
+  <h1>Tiny-project — Roles</h1>
 
-  const state = {
-    rows: [],
-    mode: "all",        // "all" | "filtered"
-    location: "",       // when mode === "filtered"
-    loading: false,
-  };
+  <div class="controls">
+    <input id="locationInput" type="search" placeholder="Filter: gurgaon / gurugram and noida / remote" />
+    <span class="muted">Tip: try “gurugram and noida”.</span>
+    <button id="addBtn">+ Add</button>
+    <span id="status" class="muted"></span><span id="error" class="err"></span>
+  </div>
 
-  const VALID_LOCS = ["gurgaon","gurugram","noida","remote"];
-
-  // ---------- Utilities ----------
-  const uid = () => Math.random().toString(36).slice(2, 10);
-
-  const escapeHtml = (s) =>
-    String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
-
-  const escapeAttr = (s) => String(s).replace(/"/g, "&quot;");
-
-  function normalizeLoc(x){
-    const s = String(x||"").trim();
-    const low = s.toLowerCase();
-    if (low.includes("gurugram") || low.includes("gurgaon")) return "Gurugram";
-    if (low.includes("gurugram and Noida") || low.includes("gurgaon and noida")) return "Gurugram & Noida";
-    if (low.includes("noida")) return "Noida";
-    if (low.includes("remote") || low.includes("wfh")) return "Remote";
-    return s || "Gurugram";
-  }
-
-  function setLoading(on){
-    state.loading = !!on;
-    const tbody = $("#tbody");
-    if (on && tbody){
-      tbody.innerHTML = `<tr><td class="empty" colspan="4">Loading…</td></tr>`;
-    }
-  }
-
-  // ---------- API helpers ----------
-  async function apiList(location) {
-    const url = location ? `/api/companies?location=${encodeURIComponent(location)}` : `/api/companies`;
-    const r = await fetch(url, { headers: { "Accept": "application/json" }});
-    if (!r.ok) throw new Error(`List failed: ${r.status}`);
-    return await r.json();
-  }
-
-  async function apiCreate(row) {
-    const r = await fetch("/api/companies", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(row),
-    });
-    if (!r.ok) throw new Error(`Create failed: ${r.status}`);
-    return await r.json();
-  }
-
-  async function apiUpdate(id, patch) {
-    const r = await fetch(`/api/companies/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    if (!r.ok) throw new Error(`Update failed: ${r.status}`);
-    return await r.json();
-  }
-
-  async function apiDelete(id) {
-    const r = await fetch(`/api/companies/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (!r.ok) throw new Error(`Delete failed: ${r.status}`);
-  }
-
-  // ---------- Render ----------
-  function render(filter = "") {
-    const tbody = $("#tbody");
-    const q = (filter || "").trim().toLowerCase();
-
-    let rows = [...state.rows];
-
-    if (state.mode === "filtered" && state.location) {
-      const target = state.location.toLowerCase();
-      rows = rows.filter((r) => String(r.location || "").toLowerCase() === target);
-    }
-
-    const filtered = rows.filter(
-      (r) =>
-        !q ||
-        (r.company || "").toLowerCase().includes(q) ||
-        (r.location || "").toLowerCase().includes(q) ||
-        (r.url || "").toLowerCase().includes(q)
-    );
-
-    if (!filtered.length) {
-      tbody.innerHTML = `<tr><td class="empty" colspan="4">No companies. Use “Add” or “Import”.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = filtered
-      .map(
-        (r) => `
-      <tr data-id="${r.id}">
-        <td>${escapeHtml(r.company || "")}</td>
-        <td><span class="tag">${escapeHtml(r.location || "")}</span></td>
-        <td><a class="url" href="${escapeAttr(r.url || "")}" target="_blank" rel="noopener">${escapeHtml(r.url || "")}</a></td>
-        <td class="actions">
-          <button class="btn" data-open="${r.id}">Open</button>
-          <button class="btn" data-edit="${r.id}">Edit</button>
-          <button class="btn danger" data-del="${r.id}">Delete</button>
-        </td>
+  <table aria-label="roles">
+    <thead>
+      <tr>
+        <th style="width:36%">Title</th>
+        <th style="width:28%">Company</th>
+        <th style="width:24%">Location</th>
+        <th style="width:12%">Actions</th>
       </tr>
-    `
-      )
-      .join("");
-  }
+    </thead>
+    <tbody id="rows">
+      <!-- filled by JS -->
+    </tbody>
+  </table>
+  <div id="empty" class="empty" style="display:none">No items yet. Click <b>+ Add</b> to create one.</div>
 
-  // ---------- UI handlers ----------
-  function openModal(mode, row = null) {
-    $("#modalTitle").textContent = mode === "edit" ? "Edit Company" : "Add Company";
-    $("#fId").value = row?.id || "";
-    $("#fCompany").value = row?.company || "";
-    $("#fLocation").value = row?.location || "";
-    $("#fUrl").value = row?.url || "";
-    $("#modal").showModal();
-    setTimeout(() => $("#fCompany").focus(), 50);
-  }
+  <!-- Inline editor -->
+  <div id="form" class="form" aria-live="polite">
+    <input type="hidden" id="id" />
+    <div class="row">
+      <label>Title
+        <input id="title" placeholder="e.g., DevOps Engineer" />
+      </label>
+      <label>Company
+        <input id="company" placeholder="e.g., ACME Corp" />
+      </label>
+      <label>Location
+        <input id="location" placeholder="gurgaon / gurugram and noida / remote" />
+      </label>
+    </div>
+    <div class="actions">
+      <button id="saveBtn" class="primary">Save</button>
+      <button id="cancelBtn" class="secondary" type="button">Cancel</button>
+    </div>
+  </div>
 
-  async function addOrUpdate(e) {
-    e.preventDefault();
-    const id = $("#fId").value || uid();
-    const row = {
-      id,
-      company: $("#fCompany").value.trim(),
-      location: $("#fLocation").value,
-      url: $("#fUrl").value.trim(),
-    };
-    if (!row.company || !row.location || !row.url) return;
-
-    setLoading(true);
-    try {
-      const exists = state.rows.find((x) => x.id === id);
-      if (exists) {
-        await apiUpdate(id, { company: row.company, location: row.location, url: row.url });
-      } else {
-        await apiCreate(row);
-      }
-      await refresh(); // re-fetch from API to stay consistent
-      $("#modal").close();
-      render($("#search")?.value || "");
-    } catch (err) {
-      alert(err.message || "Save failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function remove(id) {
-    if (!confirm("Delete this company?")) return;
-    setLoading(true);
-    try {
-      await apiDelete(id);
-      await refresh();
-      render($("#search")?.value || "");
-    } catch (err) {
-      alert(err.message || "Delete failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function pick(obj, keys){
-    for (const k of keys) {
-      const found = Object.keys(obj).find(h => h.toLowerCase().replace(/\s+/g,'').includes(k));
-      if (found) return String(obj[found]).trim();
-    }
-    return "";
-  }
-
-  // ---------- Import/Export ----------
-  function exportJSON() {
-    const blob = new Blob([JSON.stringify(state.rows, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "companies.json";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  async function importJSON(file) {
-    const text = await file.text();
-    const json = JSON.parse(text);
-    if (!Array.isArray(json)) throw new Error("Invalid JSON (need an array)");
-    // normalize & filter
-    const cleaned = json
-      .map((x) => ({
-        id: x.id || uid(),
-        company: x.company || x.Company || "",
-        location: normalizeLoc(x.location || x.Location || ""),
-        url: x.url || x["Careers URL"] || x.careers || "",
-      }))
-      .filter((x) => x.company && x.url && VALID_LOCS.includes(String(x.location).toLowerCase()));
-    await bulkUpsert(cleaned);
-  }
-
-  async function importExcel(file) {
-    // Requires: <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    const data = await file.arrayBuffer();
-    const wb = XLSX.read(data, { type: "array" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-    const mapped = rows
-      .map((r) => {
-        const company = pick(r, ["company", "organisation", "organization", "employer", "name"]);
-        const location = normalizeLoc(pick(r, ["location", "city", "region", "area"]));
-        const url = pick(r, ["careersurl", "career", "careers", "jobs", "jobpage", "url", "website"]);
-        return { id: uid(), company, location, url };
-      })
-      .filter((x) => x.company && x.url && VALID_LOCS.includes(x.location.toLowerCase()));
-
-    if (!mapped.length) {
-      alert("No valid rows found (need Company, Location, Careers URL; locations must be Gurgaon/Gurugram/Noida/Remote).");
-      return;
-    }
-    await bulkUpsert(mapped);
-  }
-
-  async function bulkUpsert(items) {
-    setLoading(true);
-    try {
-      // POST each item sequentially to keep it simple (could batch later)
-      for (const it of items) {
-        // de-dup by (company+url): if exists in state, update; else create
-        const key = (x) => (x.company.toLowerCase() + "|" + x.url.toLowerCase());
-        const existing = state.rows.find((r) => key(r) === key(it));
-        if (existing) {
-          await apiUpdate(existing.id, { company: it.company, location: it.location, url: it.url });
-        } else {
-          await apiCreate(it);
-        }
-      }
-      await refresh();
-      render($("#search")?.value || "");
-    } catch (err) {
-      alert(err.message || "Import failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ---------- Bulk UI actions ----------
-  function openAllVisible() {
-    const anchors = Array.from(document.querySelectorAll("#tbody a.url"));
-    let count = 0;
-    anchors.forEach((a) => {
-      if (a && a.href) {
-        window.open(a.href, "_blank", "noopener");
-        count++;
-      }
-    });
-    if (!count) alert("No visible rows to open.");
-  }
-
-  async function deleteAllVisible() {
-    if (!confirm("Delete ALL visible rows?")) return;
-    const ids = Array.from(document.querySelectorAll("#tbody tr[data-id]")).map((tr) => tr.getAttribute("data-id"));
-    setLoading(true);
-    try {
-      for (const id of ids) {
-        await apiDelete(id);
-      }
-      await refresh();
-      render($("#search")?.value || "");
-    } catch (err) {
-      alert(err.message || "Bulk delete failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // ---------- Data refresh ----------
-  async function refresh() {
-    const locForFetch =
-      state.mode === "filtered" && state.location
-        ? state.location
-        : null;
-    const items = await apiList(locForFetch);
-    // Ensure shape + order (newest first by created_at if present)
-    let rows = (items || []).map((x) => ({
-      id: x.id,
-      company: x.company,
-      location: x.location,
-      url: x.url,
-      created_at: x.created_at || null,
-    }));
-    rows.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
-    state.rows = rows;
-  }
-
-  // ---------- Mount ----------
-  async function mount({ mode = "all", location = "" } = {}) {
-    state.mode = mode;
-    state.location = location;
-
-    // Wire events
-    $("#addBtn")?.addEventListener("click", () => openModal("add"));
-    $("#saveBtn")?.addEventListener("click", addOrUpdate);
-    $("#search")?.addEventListener("input", (e) => render(e.target.value));
-    $("#exportBtn")?.addEventListener("click", exportJSON);
-
-    $("#importJsonFile")?.addEventListener("change", async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      try { await importJSON(f); } catch (err) { alert("Import failed: " + err.message); }
-      finally { e.target.value = ""; }
-    });
-
-    $("#importExcelFile")?.addEventListener("change", async (e) => {
-      const f = e.target.files[0];
-      if (!f) return;
-      try { await importExcel(f); } catch (err) { alert("Excel import failed: " + err.message); }
-      finally { e.target.value = ""; }
-    });
-
-    document.querySelector("#tbody")?.addEventListener("click", (e) => {
-      const openId = e.target.getAttribute("data-open");
-      const editId = e.target.getAttribute("data-edit");
-      const delId  = e.target.getAttribute("data-del");
-      if (openId) {
-        const row = state.rows.find((x) => x.id === openId);
-        if (row?.url) window.open(row.url, "_blank", "noopener");
-      }
-      if (editId) {
-        const row = state.rows.find((x) => x.id === editId);
-        openModal("edit", row);
-      }
-      if (delId) {
-        remove(delId);
-      }
-    });
-
-    // Initial load
-    setLoading(true);
-    try {
-      await refresh();
-      render();
-    } catch (err) {
-      // Helpful guidance if API/Nginx not ready
-      const tbody = $("#tbody");
-      if (tbody) {
-        tbody.innerHTML = `<tr><td class="empty" colspan="4">
-          API not reachable. Check:
-          <ul style="margin:8px 0 0 16px; text-align:left">
-            <li>Nginx proxy /api → 127.0.0.1:8000</li>
-            <li>companies-api systemd service is running</li>
-            <li>EC2 IAM role has DynamoDB access</li>
-          </ul>
-        </td></tr>`;
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return { mount };
-})();
-function closeAddModal() {
-  // <dialog id="addDialog"> support
-  const dlg = document.getElementById('addDialog');
-  if (dlg) {
-    if (typeof dlg.close === 'function') dlg.close();
-    dlg.setAttribute('open', ''); // harmless if already closed
-    dlg.removeAttribute('open');
-  }
-  // CSS modal fallback (e.g., class="hidden")
-  const modal = document.getElementById('addModal');
-  if (modal) modal.classList.add('hidden');
-}
-
-function resetAddForm() {
-  const form = document.getElementById('companyForm');
-  if (form) form.reset();
-}
-
-function onCancelAdd(e) {
-  if (e) e.preventDefault();
-  resetAddForm();
-  closeAddModal();
-}
-
-document.getElementById('cancelBtn')?.addEventListener('click', onCancelAdd);
+  <!-- Optionally set API base from HTML (e.g., when deploying backend elsewhere) -->
+  <!-- <script>window.API_BASE = "https://your-backend.example.com";</script> -->
+  <script src="assets/app.js"></script>
+</body>
+</html>

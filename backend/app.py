@@ -15,6 +15,35 @@ CORS(app)
 def now_iso():
     return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
+def normalize_payload(data, partial=False):
+    if not isinstance(data, dict):
+        raise ValueError("Invalid JSON body.")
+
+    cleaned = {}
+
+    def _trim(value):
+        if value is None:
+            return ""
+        return str(value).strip()
+
+    for field in ("company", "location", "url"):
+        if field not in data:
+            continue
+        value = _trim(data[field])
+        if field in ("company", "location") and not value:
+            raise ValueError(f"Missing or empty '{field}'")
+        cleaned[field] = value
+
+    if not partial:
+        for field in ("company", "location"):
+            if field not in cleaned:
+                raise ValueError(f"Missing or empty '{field}'")
+
+    if partial and not cleaned:
+        raise ValueError("No fields provided for update.")
+
+    return cleaned
+
 @app.get("/health")
 def health():
     return {"ok": True}, 200
@@ -47,19 +76,37 @@ def list_companies():
 @app.post("/api/companies")
 def add_company():
     data = request.get_json(force=True, silent=True) or {}
-    # required fields
-    for k in ("company", "location", "url"):
-        if k not in data or not str(data[k]).strip():
-            return jsonify({"error": f"Missing or empty '{k}'"}), 400
+    try:
+        payload = normalize_payload(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     item = {
         "id": str(uuid.uuid4()),
-        "company": data["company"].strip(),
-        "location": data["location"].strip(),
-        "url": data["url"].strip(),
         "updated_at": now_iso(),
+        **payload,
     }
     table.put_item(Item=item)
     return jsonify(item), 201
+
+
+@app.put("/api/companies/<id>")
+def update_company(id):
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        payload = normalize_payload(data, partial=True)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    resp = table.get_item(Key={"id": id})
+    item = resp.get("Item")
+    if not item:
+        return jsonify({"error": "Not found"}), 404
+
+    item.update(payload)
+    item["updated_at"] = now_iso()
+    table.put_item(Item=item)
+    return jsonify(item), 200
 
 @app.delete("/api/companies/<id>")
 def delete_company(id):

@@ -1,80 +1,140 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Tiny-project — Roles</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    :root { --muted:#666; --line:#eee; }
-    body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin: 28px; }
-    h1 { margin: 0 0 14px; font-size: 22px; }
-    .controls { display:flex; gap:12px; align-items:center; margin:12px 0 18px; flex-wrap:wrap; }
-    input[type="text"], input[type="search"] { padding:10px 12px; border:1px solid #ccc; border-radius:10px; min-width:300px; }
-    button { padding:10px 14px; border:1px solid #ddd; border-radius:10px; background:#fafafa; cursor:pointer; }
-    button:hover { background:#f2f2f2; }
-    table { width:100%; border-collapse:collapse; margin-top:8px; }
-    th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
-    th { background:#fafafa; position:sticky; top:0; }
-    .pill { display:inline-block; padding:2px 8px; border:1px solid #ddd; border-radius:999px; font-size:12px; }
-    .empty { padding:12px; color:var(--muted); }
-    .muted { color:var(--muted); font-size:12px; }
-    .form { display:none; border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:16px; }
-    .row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
-    .row > label { display:flex; flex-direction:column; gap:6px; flex:1 1 220px; }
-    .row input { padding:10px 12px; border:1px solid #ccc; border-radius:10px; }
-    .form .actions { display:flex; gap:10px; }
-    .actions button.primary { background:#111; color:#fff; border-color:#111; }
-    .actions button.secondary { background:#fff; }
-    .err { color:#a00; font-size:12px; margin-left:8px; }
-  </style>
-</head>
-<body>
-  <h1>Tiny-project — Roles</h1>
+// ===== API CONFIG: set BASE if backend runs elsewhere (ensure CORS) =====
+const BASE = ""; // "" = same-origin; set to "https://your-api.example"
+const API = {
+  list:   () => `${BASE}/api/companies`,             // GET -> [{id,company,location}] or {items:[...]}
+  create: () => `${BASE}/api/companies`,             // POST body {company,location}
+  update: (id) => `${BASE}/api/companies/${id}`,     // PUT body {company,location}
+  remove: (id) => `${BASE}/api/companies/${id}`,     // DELETE
+};
 
-  <div class="controls">
-    <input id="locationInput" type="search" placeholder="Filter: gurgaon / gurugram and noida / remote" />
-    <span class="muted">Tip: try “gurugram and noida”.</span>
-    <button id="addBtn">+ Add</button>
-    <span id="status" class="muted"></span><span id="error" class="err"></span>
-  </div>
+// ===== DOM =====
+const $ = (s) => document.querySelector(s);
+const tbody = $("#tbody"), empty = $("#empty");
+const search = $("#search"), statusEl = $("#status"), errorEl = $("#error");
+const modal = $("#modal"), form = $("#form"), btnAdd = $("#btnAdd"), btnCancel = $("#btnCancel");
+const fieldId = $("#id"), fieldCompany = $("#company"), fieldLocation = $("#location");
 
-  <table aria-label="roles">
-    <thead>
-      <tr>
-        <th style="width:36%">Title</th>
-        <th style="width:28%">Company</th>
-        <th style="width:24%">Location</th>
-        <th style="width:12%">Actions</th>
-      </tr>
-    </thead>
-    <tbody id="rows">
-      <!-- filled by JS -->
-    </tbody>
-  </table>
-  <div id="empty" class="empty" style="display:none">No items yet. Click <b>+ Add</b> to create one.</div>
+// ===== State =====
+let rows = []; // [{id, company, location}]
 
-  <!-- Inline editor -->
-  <div id="form" class="form" aria-live="polite">
-    <input type="hidden" id="id" />
-    <div class="row">
-      <label>Title
-        <input id="title" placeholder="e.g., DevOps Engineer" />
-      </label>
-      <label>Company
-        <input id="company" placeholder="e.g., ACME Corp" />
-      </label>
-      <label>Location
-        <input id="location" placeholder="gurgaon / gurugram and noida / remote" />
-      </label>
-    </div>
-    <div class="actions">
-      <button id="saveBtn" class="primary">Save</button>
-      <button id="cancelBtn" class="secondary" type="button">Cancel</button>
-    </div>
-  </div>
+// ===== Utils =====
+const esc = (s) => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const setStatus = (m="") => statusEl.textContent = m;
+const setError  = (m="") => errorEl.textContent  = m;
 
-  <!-- Optionally set API base from HTML (e.g., when deploying backend elsewhere) -->
-  <!-- <script>window.API_BASE = "https://your-backend.example.com";</script> -->
-  <script src="assets/app.js"></script>
-</body>
-</html>
+async function apiGET(url) {
+  const r = await fetch(url, { headers: { 'Accept': 'application/json' }});
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
+async function apiJSON(url, method, body) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json().catch(() => ({}));
+}
+
+function render(list = rows) {
+  const q = search.value.trim().toLowerCase();
+  const data = q ? list.filter(r => (r.location||"").toLowerCase().includes(q)) : list;
+
+  if (!data.length) {
+    tbody.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+  empty.style.display = "none";
+  tbody.innerHTML = data.map(r => `
+    <tr data-id="${esc(r.id ?? "")}">
+      <td>${esc(r.company || "")}</td>
+      <td>${esc(r.location || "")}</td>
+      <td>
+        <button class="link" data-act="edit">Edit</button>
+        <span> | </span>
+        <button class="link" data-act="del">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+// ===== Initial load =====
+(async function init(){
+  try {
+    setError(""); setStatus("Loading…");
+    const data = await apiGET(API.list());
+    rows = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+    setStatus(`Loaded ${rows.length} record(s).`);
+    render();
+  } catch (e) {
+    setStatus(""); setError("Failed to load. Check API/CORS.");
+    rows = []; render();
+  }
+})();
+
+// ===== Search =====
+search.addEventListener("input", () => render());
+
+// ===== Add =====
+btnAdd.addEventListener("click", () => {
+  form.reset();
+  fieldId.value = "";
+  modal.showModal();
+  fieldCompany.focus();
+});
+
+// ===== Cancel =====
+btnCancel.addEventListener("click", () => modal.close());
+
+// ===== Row actions =====
+tbody.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button"); if (!btn) return;
+  const tr = e.target.closest("tr"); const id = tr?.getAttribute("data-id");
+  const act = btn.getAttribute("data-act");
+
+  if (act === "edit") {
+    const row = rows.find(r => String(r.id) === String(id));
+    if (!row) return;
+    fieldId.value = row.id || "";
+    fieldCompany.value = row.company || "";
+    fieldLocation.value = row.location || "";
+    modal.showModal();
+  } else if (act === "del") {
+    try {
+      setError(""); setStatus("Deleting…");
+      await apiJSON(API.remove(id), "DELETE");
+      rows = rows.filter(r => String(r.id) !== String(id));
+      setStatus("Deleted.");
+      render();
+    } catch (e2) {
+      setStatus(""); setError("Delete failed. Check API route/permissions.");
+    }
+  }
+});
+
+// ===== Save (Add/Edit) =====
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const payload = {
+    company: fieldCompany.value.trim(),
+    location: fieldLocation.value
+  };
+  if (!payload.company || !payload.location) return;
+
+  try {
+    setError(""); setStatus("Saving…");
+    const id = fieldId.value;
+    if (id) {
+      const updated = await apiJSON(API.update(id), "PUT", payload);
+      const i = rows.findIndex(r => String(r.id) === String(id));
+      if (i >= 0) rows[i] = { ...rows[i], ...(updated || payload) };
+      setStatus("Updated.");
+    } else {
+      const created = await apiJSON(API.create(), "POST", payload);
+      const item = created?.item || created || { ...payload, id: crypto.randomUUID?.() || String(Date.now()) };
+      rows.unshift(item);
+      setStatus("Created.");
+    }
+    modal.close(); render();
+  } catch (e3) {
+    setStatus(""); setError("Save failed. Check API route/payload/CORS.");
+  }
+});

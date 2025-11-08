@@ -96,17 +96,33 @@ if (essentials.some((node) => !node)) {
       .join("");
   }
 
+  const openDialog = () => {
+    if (typeof modal.showModal === "function") {
+      modal.showModal();
+    } else {
+      modal.setAttribute("open", "true");
+    }
+  };
+
+  const closeDialog = () => {
+    if (typeof modal.close === "function") {
+      modal.close();
+    } else {
+      modal.removeAttribute("open");
+    }
+  };
+
   function openModal(row = null) {
     form.reset();
     fieldId.value = row?.id || "";
     fieldCompany.value = row?.company || "";
     fieldLocation.value = row?.location || "";
-    modal.showModal();
+    openDialog();
     fieldCompany.focus();
   }
 
   function closeModal() {
-    modal.close();
+    closeDialog();
   }
 
   async function loadRows() {
@@ -217,9 +233,15 @@ if (essentials.some((node) => !node)) {
 
   window.App = App;
 
-  window.addEventListener("DOMContentLoaded", () => {
+  const start = () => {
     if (!window.App.mounted) {
       window.App.mount();
     }
-  });
+  };
+
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
 }

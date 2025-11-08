@@ -11,10 +11,11 @@
     <h1 id="title">Company Opportunities</h1>
     <nav class="nav">
       <a href="index.html">All</a>
-      <a href="locations.html?loc=Gurgaon">Gurgaon</a>
-      <a href="locations.html?loc=Gurugram">Gurugram</a>
-      <a href="locations.html?loc=Noida">Noida</a>
-      <a href="locations.html?loc=Remote">Remote</a>
+      <a href="locations.html?loc=gurgaon">Gurgaon</a>
+      <a href="locations.html?loc=gurgaon">Gurugram</a>
+      <a href="locations.html?loc=gurgaon_noida">Gurgaon + Noida</a>
+      <a href="locations.html?loc=noida">Noida</a>
+      <a href="locations.html?loc=remote">Remote</a>
     </nav>
   </header>
 
@@ -48,43 +49,59 @@
     </p>
   </main>
 
-  <!-- Modal reused -->
+  <!-- Add/Edit Modal (reused) -->
   <dialog id="modal">
     <form method="dialog" class="modal">
       <h3 id="modalTitle">Add Company</h3>
       <div class="grid grid-2">
         <div>
-          <label>Company</label>
-          <input id="fCompany" type="text" required/>
+          <label for="fCompany">Company</label>
+          <input id="fCompany" name="company" type="text" required/>
         </div>
         <div>
-          <label>Location</label>
-          <select id="fLocation" required>
+          <label for="fLocation">Location</label>
+          <select id="fLocation" name="location" required>
             <option value="">Select</option>
-            <option>Gurgaon</option>
-            <option>Gurugram</option>
-            <option>Noida</option>
-            <option>Remote</option>
+            <option value="gurgaon">Gurgaon</option>
+            <option value="gurgaon">Gurugram</option>
+            <option value="gurgaon_noida">Gurgaon + Noida</option>
+            <option value="noida">Noida</option>
+            <option value="remote">Remote</option>
           </select>
         </div>
         <div class="grid" style="grid-column:1/-1">
-          <label>Careers URL</label>
-          <input id="fUrl" type="text" required/>
+          <label for="fUrl">Careers URL</label>
+          <input id="fUrl" name="url" type="text" required/>
         </div>
       </div>
       <div class="row">
         <button class="btn" value="cancel">Cancel</button>
         <button class="btn primary" id="saveBtn" value="default">Save</button>
       </div>
-      <input type="hidden" id="fId"/>
+      <input type="hidden" id="fId" name="id"/>
     </form>
   </dialog>
 
   <script src="assets/app.js"></script>
   <script>
+    // normalize & map code -> pretty label
     const params = new URLSearchParams(location.search);
-    const loc = params.get("loc") || "Gurgaon";
-    document.getElementById("title").textContent = `Company Opportunities — ${loc}`;
+    let loc = (params.get("loc") || "gurgaon").trim().toLowerCase();
+
+    // treat 'gurugram' as 'gurgaon'
+    if (loc === "gurugram") loc = "gurgaon";
+
+    const LABELS = {
+      gurgaon: "Gurgaon",
+      noida: "Noida",
+      remote: "Remote",
+      gurgaon_noida: "Gurgaon + Noida"
+    };
+
+    const pretty = LABELS[loc] || "Gurgaon";
+    document.getElementById("title").textContent = `Company Opportunities — ${pretty}`;
+
+    // Mount in filtered mode with normalized code
     App.mount({ mode: "filtered", location: loc });
   </script>
 </body>

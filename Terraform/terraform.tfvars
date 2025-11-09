@@ -1,1 +1,1 @@
-key_name = "devops-new.pem"
+key_name = "devops-new"

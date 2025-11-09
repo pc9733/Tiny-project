@@ -64,12 +64,12 @@
           <label for="location">Location</label>
           <select id="location" name="location" required>
             <option value="">Select</option>
-            <option value="gurgaon">Gurgaon</option>
-            <option value="gurugram">Gurugram</option>
-            <option value="gurgaon_noida">Gurgaon + Noida</option>
-            <option value="noida">Noida</option>
-            <option value="delhi">Delhi</option>
-            <option value="remote">Remote</option>
+            <option>Gurgaon</option>
+            <option>Gurugram</option>
+            <option>Gurgaon + Noida</option>
+            <option>Noida</option>
+            <option>Delhi</option>
+            <option>Remote</option>
           </select>
         </div>
         <div class="grid" style="grid-column:1/-1">
@@ -91,18 +91,20 @@
     const params = new URLSearchParams(location.search);
     let loc = (params.get("loc") || "gurgaon").trim().toLowerCase();
 
-    // treat 'gurugram' as 'gurgaon'
-    if (loc === "gurugram") loc = "gurgaon";
-
     const LABELS = {
       gurgaon: "Gurgaon",
+      gurugram: "Gurugram",
       noida: "Noida",
       remote: "Remote",
       delhi: "Delhi",
       gurgaon_noida: "Gurgaon + Noida"
     };
 
-    const pretty = LABELS[loc] || "Gurgaon";
+    if (!LABELS[loc]) {
+      loc = "gurgaon";
+    }
+
+    const pretty = LABELS[loc] || LABELS.gurgaon;
     document.getElementById("title").textContent = `Company Opportunities — ${pretty}`;
 
     // Mount in filtered mode with normalized code

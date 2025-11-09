@@ -42,12 +42,15 @@ jobs:
           aws-region: ${{ inputs.aws_region }}
 
       - name: Initialize Packer plugins
+        working-directory: packer
         run: packer init packer.pkr.hcl
 
       - name: Validate template
+        working-directory: packer
         run: packer validate -var "aws_region=${{ inputs.aws_region }}" packer.pkr.hcl
 
       - name: Build AMI
+        working-directory: packer
         run: |
           packer build \
             -var "aws_region=${{ inputs.aws_region }}" \

@@ -277,13 +277,13 @@ if (essentials.some((node) => !node)) {
     })();
 
     const locationNormalized = normalizeLocationCode(locationInput || locationText);
-    const locationLabel = locationNormalized
-      ? LOCATION_LABELS[locationNormalized] || locationText || locationInput
-      : locationInput || locationText;
+    const locationCanonical = locationNormalized
+      || normalizeLocationCode(locationInput || locationText)
+      || "";
 
     const payload = {
       company,
-      location: (locationLabel || "").trim(),
+      location: (locationCanonical || locationInput || locationText || "").trim(),
     };
     if (fieldUrl) {
       payload.url = fieldUrl.value.trim();

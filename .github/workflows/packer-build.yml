@@ -18,6 +18,9 @@ permissions:
 jobs:
   packer:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packer
     env:
       PACKER_LOG: "1"
       AWS_REGION: ${{ inputs.aws_region }}

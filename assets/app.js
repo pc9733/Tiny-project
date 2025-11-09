@@ -34,11 +34,12 @@ if (essentials.some((node) => !node)) {
   };
 
   const table = tbody.closest("table");
-  const showUrlColumn = Boolean(
+  const headerCount = table?.querySelectorAll("thead th").length || 0;
+  const showUrlColumn = headerCount >= 4 || Boolean(
     table?.querySelector("[data-col='url']")
       || document.querySelector("th[data-col='url']")
   );
-  const tableColumnCount = table?.querySelectorAll("thead th").length || (showUrlColumn ? 4 : 3);
+  const tableColumnCount = headerCount || (showUrlColumn ? 4 : 3);
 
   const LOCATION_LABELS = {
     gurgaon: "Gurgaon",

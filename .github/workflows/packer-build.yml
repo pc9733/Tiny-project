@@ -1,0 +1,51 @@
+name: Build AMI with Packer
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: "AWS region for builder + AMI"
+        type: string
+        default: "us-east-1"
+      ami_name:
+        description: "Name for the resulting AMI"
+        type: string
+        default: "companies-platform-${{ github.run_id }}"
+
+permissions:
+  contents: read
+
+jobs:
+  packer:
+    runs-on: ubuntu-latest
+    env:
+      PACKER_LOG: "1"
+      AWS_REGION: ${{ inputs.aws_region }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: "latest"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Initialize Packer plugins
+        run: packer init packer.pkr.hcl
+
+      - name: Validate template
+        run: packer validate -var "aws_region=${{ inputs.aws_region }}" packer.pkr.hcl
+
+      - name: Build AMI
+        run: |
+          packer build \
+            -var "aws_region=${{ inputs.aws_region }}" \
+            -var "ami_name=${{ inputs.ami_name }}" \
+            packer.pkr.hcl

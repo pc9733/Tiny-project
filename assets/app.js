@@ -225,9 +225,22 @@ if (essentials.some((node) => !node)) {
 
   async function handleSave(event) {
     event.preventDefault();
+    const company = fieldCompany.value.trim();
+    const locationInput = fieldLocation.value?.trim?.() || "";
+    const locationText = (() => {
+      if (!fieldLocation) return "";
+      if (fieldLocation.tagName === "SELECT") {
+        const opt = fieldLocation.options[fieldLocation.selectedIndex];
+        return (opt?.textContent || "").trim();
+      }
+      return locationInput;
+    })();
+
+    const locationNormalized = normalizeLocationCode(locationInput || locationText);
+
     const payload = {
-      company: fieldCompany.value.trim(),
-      location: fieldLocation.value.trim(),
+      company,
+      location: locationNormalized || locationInput || locationText,
     };
     if (fieldUrl) {
       payload.url = fieldUrl.value.trim();

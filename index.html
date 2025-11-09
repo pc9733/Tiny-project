@@ -17,9 +17,10 @@
   <table aria-label="companies" class="table">
     <thead>
       <tr>
-        <th style="width:48%">Company</th>
-        <th style="width:28%">Location</th>
-        <th style="width:24%">Actions</th>
+        <th style="width:40%">Company</th>
+        <th style="width:22%">Location</th>
+        <th data-col="url" style="width:22%">Careers URL</th>
+        <th style="width:16%">Actions</th>
       </tr>
     </thead>
     <tbody id="tbody"></tbody>
@@ -40,12 +41,12 @@
         <label>Location
           <select id="location" required>
             <option value="">Select…</option>
-            <option>Noida</option>
-            <option>Gurgaon</option>
-            <option>Gurugram</option>
-            <option>Gurgaon + Noida</option>
-            <option>Delhi</option>
-            <option>Remote</option>
+            <option value="noida">Noida</option>
+            <option value="gurgaon">Gurgaon</option>
+            <option value="gurugram">Gurugram</option>
+            <option value="gurgaon_noida">Gurgaon + Noida</option>
+            <option value="delhi">Delhi</option>
+            <option value="remote">Remote</option>
           </select>
         </label>
         <label>Careers URL

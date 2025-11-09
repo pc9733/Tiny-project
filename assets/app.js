@@ -16,9 +16,7 @@ const modal = $("#modal");
 const form = $("#form") || modal?.querySelector("form");
 const btnAddTop = $("#btnAdd") || $("#addBtn");
 const btnAddBottom = $("#btnAddBottom");
-const btnCancel = $("#btnCancel")
-  || modal?.querySelector("button[value='cancel']")
-  || modal?.querySelector("button[type='button']");
+const btnCancel = $("#btnCancel") || modal?.querySelector("button[value='cancel']") || modal?.querySelector("button[type='button']");
 const fieldId = $("#id") || $("#fId");
 const fieldCompany = $("#company") || $("#fCompany");
 const fieldLocation = $("#location") || $("#fLocation");
@@ -34,11 +32,7 @@ if (essentials.some((node) => !node)) {
   };
 
   const table = tbody.closest("table");
-  const showUrlColumn = Boolean(
-    table?.querySelector("[data-col='url']")
-      || document.querySelector("th[data-col='url']")
-  );
-  const tableColumnCount = table?.querySelectorAll("thead th").length || (showUrlColumn ? 4 : 3);
+  const showUrlColumn = !!table?.querySelector("[data-col='url']");
 
   const LOCATION_LABELS = {
     gurgaon: "Gurgaon",
@@ -182,7 +176,9 @@ if (essentials.some((node) => !node)) {
       : state.rows;
 
     if (!display.length) {
-      tbody.innerHTML = `<tr><td class="empty" colspan="${tableColumnCount}">No records.</td></tr>`;
+      tbody.innerHTML = showUrlColumn
+        ? "<tr><td class=\"empty\" colspan=\"4\">No records.</td></tr>"
+        : "";
       if (empty) empty.style.display = "block";
       return;
     }
@@ -193,11 +189,7 @@ if (essentials.some((node) => !node)) {
         <tr data-id="${esc(row.id)}">
           <td>${esc(row.company)}</td>
           <td>${esc(row.location)}</td>
-          ${showUrlColumn
-            ? `<td data-col="url">${row.url
-                ? `<a href="${esc(row.url)}" target="_blank" rel="noopener">${esc(row.url)}</a>`
-                : "<span class=\"muted\">—</span>"}</td>`
-            : ""}
+          ${showUrlColumn ? `<td>${row.url ? `<a href="${esc(row.url)}" target="_blank" rel="noopener">${esc(row.url)}</a>` : "<span class=\"muted\">—</span>"}</td>` : ""}
           <td>
             <button class="link" data-act="edit">Edit</button>
             <span> | </span>
@@ -274,13 +266,10 @@ if (essentials.some((node) => !node)) {
     })();
 
     const locationNormalized = normalizeLocationCode(locationInput || locationText);
-    const locationLabel = locationNormalized
-      ? LOCATION_LABELS[locationNormalized] || locationText || locationInput
-      : locationInput || locationText;
 
     const payload = {
       company,
-      location: (locationLabel || "").trim(),
+      location: locationNormalized || locationInput || locationText,
     };
     if (fieldUrl) {
       payload.url = fieldUrl.value.trim();

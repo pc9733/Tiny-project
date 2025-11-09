@@ -41,7 +41,7 @@ The final AMI ID is printed at the end of `packer build`. Record it (or tag it i
 
 ### GitHub Actions workflow
 
-Prefer to build in CI? Trigger the `Build AMI with Packer` workflow (`.github/workflows/packer-build.yml`). It accepts `aws_region` and `ami_name` inputs and uses the repository secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for authentication. The workflow runs `packer init`, `validate`, and `build`, and the resulting AMI ID appears in the run logs.
+Prefer to build in CI? Trigger the `Build AMI with Packer` workflow (`.github/workflows/packer-build.yml`). It accepts `aws_region`, plus an optional `ami_name` override (leave blank to auto-generate `companies-platform-<run_id>`). The workflow uses the repository secrets `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, runs `packer init`, `validate`, `build`, and prints the AMI ID in the logs.
 
 ## Customization
 

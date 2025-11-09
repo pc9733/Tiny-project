@@ -118,7 +118,16 @@ if (essentials.some((node) => !node)) {
 
   async function apiGET(url) {
     const res = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      let message = `${res.status} ${res.statusText}`;
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+      } catch (err) {
+        // swallow parse errors so we can throw the default message
+      }
+      throw new Error(message);
+    }
     return res.json();
   }
 
@@ -128,8 +137,29 @@ if (essentials.some((node) => !node)) {
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return res.json().catch(() => ({}));
+
+    let payload = null;
+    const text = await res.text();
+    if (text) {
+      try {
+        payload = JSON.parse(text);
+      } catch (err) {
+        payload = text;
+      }
+    }
+
+    if (!res.ok) {
+      const message =
+        (payload && typeof payload === "object" && payload.error)
+          || (typeof payload === "string" && payload)
+          || `${res.status} ${res.statusText}`;
+      const error = new Error(message);
+      error.status = res.status;
+      error.payload = payload;
+      throw error;
+    }
+
+    return payload && typeof payload === "object" ? payload : {};
   }
 
   const normalizeList = (data) => {
@@ -209,8 +239,7 @@ if (essentials.some((node) => !node)) {
     setStatus("Loading…");
     setError("");
     try {
-      const query = state.filterLocation ? `?location=${encodeURIComponent(state.filterLocation)}` : "";
-      const data = await apiGET(`${API.list()}${query}`);
+      const data = await apiGET(API.list());
       state.rows = normalizeList(data);
       render();
       setStatus(`Loaded ${state.rows.length} record(s).`);
@@ -219,7 +248,7 @@ if (essentials.some((node) => !node)) {
       state.rows = [];
       render();
       setStatus("");
-      setError("Unable to fetch data. Check API/credentials.");
+      setError(err?.message || "Unable to fetch data. Check API/credentials.");
     }
   }
 
@@ -289,7 +318,7 @@ if (essentials.some((node) => !node)) {
     } catch (err) {
       console.error("Save failed", err);
       setStatus("");
-      setError("Save failed. Check API or required fields.");
+      setError(err?.message || "Save failed. Check API or required fields.");
     }
   }
 
@@ -305,7 +334,7 @@ if (essentials.some((node) => !node)) {
     } catch (err) {
       console.error("Delete failed", err);
       setStatus("");
-      setError("Delete failed. Check API permissions.");
+      setError(err?.message || "Delete failed. Check API permissions.");
     }
   }
 

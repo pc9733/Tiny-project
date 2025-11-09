@@ -34,20 +34,22 @@ variable "instance_type" {
   default     = "t3.micro"
 }
 
-variable "subnet_id" {
-  description = "Subnet where the EC2 instance will launch."
-  type        = string
-}
-
-variable "vpc_id" {
-  description = "VPC ID used for security group attachment."
-  type        = string
-}
-
 variable "key_name" {
   description = "Optional EC2 key pair for SSH access."
   type        = string
   default     = ""
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for the VPC that hosts the application."
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "public_subnet_cidr" {
+  description = "CIDR block for the public subnet containing the EC2 instance."
+  type        = string
+  default     = "10.0.1.0/24"
 }
 
 variable "allowed_ssh_cidr" {

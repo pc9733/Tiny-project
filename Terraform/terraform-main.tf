@@ -31,6 +31,53 @@ resource "aws_dynamodb_table" "companies" {
   })
 }
 
+resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+
+  tags = merge(local.common_tags, {
+    Name = "${local.common_tags.Project}-${var.environment}-vpc"
+  })
+}
+
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = merge(local.common_tags, {
+    Name = "${local.common_tags.Project}-${var.environment}-igw"
+  })
+}
+
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_cidr
+  map_public_ip_on_launch = true
+  availability_zone       = "${var.aws_region}a"
+
+  tags = merge(local.common_tags, {
+    Name = "${local.common_tags.Project}-${var.environment}-public-subnet"
+  })
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${local.common_tags.Project}-${var.environment}-public-rt"
+  })
+}
+
+resource "aws_route_table_association" "public" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
+
 module "companies_app" {
   source = "./modules/companies_app"
 
@@ -39,8 +86,8 @@ module "companies_app" {
   location_index_name  = var.location_index_name
   ami_name_prefix      = var.ami_name_prefix
   instance_type        = var.instance_type
-  subnet_id            = var.subnet_id
-  vpc_id               = var.vpc_id
+  subnet_id            = aws_subnet.public.id
+  vpc_id               = aws_vpc.main.id
   key_name             = var.key_name
   allowed_ssh_cidr     = var.allowed_ssh_cidr
   allowed_http_cidr    = var.allowed_http_cidr

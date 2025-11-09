@@ -22,9 +22,10 @@ variable "location_index_name" {
   default     = "LocationIndex"
 }
 
-variable "ami_id" {
-  description = "AMI ID for the EC2 instance (e.g., baked via Packer)."
+variable "ami_name_prefix" {
+  description = "Prefix used when searching for the latest Packer-built AMI."
   type        = string
+  default     = "companies-platform-"
 }
 
 variable "instance_type" {

@@ -5,10 +5,10 @@ output "dynamodb_table_name" {
 
 output "instance_id" {
   description = "ID of the EC2 instance running the app."
-  value       = aws_instance.companies.id
+  value       = module.companies_app.instance_id
 }
 
 output "instance_public_ip" {
   description = "Public IPv4 address for quick access."
-  value       = aws_instance.companies.public_ip
+  value       = module.companies_app.instance_public_ip
 }

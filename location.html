@@ -11,18 +11,18 @@
     <h1 id="title">Company Opportunities</h1>
     <nav class="nav">
       <a href="index.html">All</a>
-      <a href="locations.html?loc=gurgaon">Gurgaon</a>
-      <a href="locations.html?loc=gurgaon">Gurugram</a>
-      <a href="locations.html?loc=gurgaon_noida">Gurgaon + Noida</a>
-      <a href="locations.html?loc=noida">Noida</a>
-      <a href="locations.html?loc=remote">Remote</a>
+      <a href="location.html?loc=gurgaon">Gurgaon</a>
+      <a href="location.html?loc=gurugram">Gurugram</a>
+      <a href="location.html?loc=gurgaon_noida">Gurgaon + Noida</a>
+      <a href="location.html?loc=noida">Noida</a>
+      <a href="location.html?loc=remote">Remote</a>
     </nav>
   </header>
 
   <main class="container">
     <div class="toolbar">
       <input id="search" class="search" placeholder="Search companies or URL…"/>
-      <button class="btn primary" id="addBtn">+ Add Company</button>
+      <button class="btn primary" id="btnAdd">+ Add Company</button>
       <button class="btn" id="exportBtn">Export</button>
       <label class="btn" for="importFile">Import</label>
       <input type="file" id="importFile" accept="application/json" hidden>
@@ -34,7 +34,7 @@
         <tr>
           <th style="width:34%">Company</th>
           <th style="width:18%">Location</th>
-          <th>Careers URL</th>
+          <th data-col="url">Careers URL</th>
           <th style="width:180px">Actions</th>
         </tr>
         </thead>
@@ -44,6 +44,8 @@
       </table>
     </section>
 
+    <div id="empty" class="empty" style="display:none">No records.</div>
+
     <p class="muted tip">
       Viewing a filtered list. Use the navigation to switch locations or go back to All.
     </p>
@@ -51,34 +53,35 @@
 
   <!-- Add/Edit Modal (reused) -->
   <dialog id="modal">
-    <form method="dialog" class="modal">
+    <form method="dialog" id="form" class="modal">
       <h3 id="modalTitle">Add Company</h3>
       <div class="grid grid-2">
         <div>
-          <label for="fCompany">Company</label>
-          <input id="fCompany" name="company" type="text" required/>
+          <label for="company">Company</label>
+          <input id="company" name="company" type="text" required/>
         </div>
         <div>
-          <label for="fLocation">Location</label>
-          <select id="fLocation" name="location" required>
+          <label for="location">Location</label>
+          <select id="location" name="location" required>
             <option value="">Select</option>
             <option value="gurgaon">Gurgaon</option>
-            <option value="gurgaon">Gurugram</option>
+            <option value="gurugram">Gurugram</option>
             <option value="gurgaon_noida">Gurgaon + Noida</option>
             <option value="noida">Noida</option>
+            <option value="delhi">Delhi</option>
             <option value="remote">Remote</option>
           </select>
         </div>
         <div class="grid" style="grid-column:1/-1">
-          <label for="fUrl">Careers URL</label>
-          <input id="fUrl" name="url" type="text" required/>
+          <label for="url">Careers URL</label>
+          <input id="url" name="url" type="url" required/>
         </div>
       </div>
       <div class="row">
-        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn" type="button" id="btnCancel" value="cancel">Cancel</button>
         <button class="btn primary" id="saveBtn" value="default">Save</button>
       </div>
-      <input type="hidden" id="fId" name="id"/>
+      <input type="hidden" id="id" name="id"/>
     </form>
   </dialog>
 
@@ -95,6 +98,7 @@
       gurgaon: "Gurgaon",
       noida: "Noida",
       remote: "Remote",
+      delhi: "Delhi",
       gurgaon_noida: "Gurgaon + Noida"
     };
 

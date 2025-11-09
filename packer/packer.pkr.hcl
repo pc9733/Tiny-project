@@ -67,10 +67,9 @@ build {
   }
 
   provisioner "shell" {
-    inline = ["chmod +x /tmp/packer-provision.sh"]
-  }
-
-  provisioner "shell" {
-    script = "/tmp/packer-provision.sh"
+    inline = [
+      "chmod +x /tmp/packer-provision.sh",
+      "sudo /tmp/packer-provision.sh"
+    ]
   }
 }

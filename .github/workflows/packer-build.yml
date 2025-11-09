@@ -8,9 +8,9 @@ on:
         type: string
         default: "us-east-1"
       ami_name:
-        description: "Name for the resulting AMI"
+        description: "Name for the resulting AMI (leave blank to auto-generate)"
         type: string
-        default: "companies-platform-${{ github.run_id }}"
+        default: ""
 
 permissions:
   contents: read
@@ -24,6 +24,7 @@ jobs:
     env:
       PACKER_LOG: "1"
       AWS_REGION: ${{ inputs.aws_region }}
+      AMI_NAME: ${{ inputs.ami_name != '' && inputs.ami_name || format('companies-platform-{0}', github.run_id) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,5 +51,5 @@ jobs:
         run: |
           packer build \
             -var "aws_region=${{ inputs.aws_region }}" \
-            -var "ami_name=${{ inputs.ami_name }}" \
+            -var "ami_name=${{ env.AMI_NAME }}" \
             packer.pkr.hcl

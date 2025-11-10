@@ -15,6 +15,7 @@ sudo ${PKG_MGR} -y update
 
 log "Installing runtime dependencies"
 sudo ${PKG_MGR} install -y nginx python3 python3-pip unzip rsync git
+sudo ${PKG_MGR} systemctl enable nginx
 
 log "Preparing directories for frontend and backend"
 sudo mkdir -p /var/www/mywebsite

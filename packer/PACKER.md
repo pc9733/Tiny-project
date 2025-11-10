@@ -34,7 +34,7 @@ packer build \
 During the build Packer will:
 
 1. Launch an Amazon Linux 2023 instance.
-2. Upload `packer-provision.sh` and execute it to install nginx, Python, rsync, git, and pre-create `/var/www/mywebsite` plus `/home/ec2-user/companies-api/venv`.
+2. Upload `packer-provision.sh` and execute it to install nginx, Python, rsync, git, the New Relic infrastructure agent (disabled until deployment injects the license key), and pre-create `/var/www/mywebsite` plus `/home/ec2-user/companies-api/venv`.
 3. Snapshot the instance into a reusable AMI tagged `Role=companies-app`.
 
 The final AMI ID is printed at the end of `packer build`. Record it (or tag it in AWS) and update your launch templates / Auto Scaling Groups to use this image.
@@ -48,6 +48,7 @@ Prefer to build in CI? Trigger the `Build AMI with Packer` workflow (`.github/wo
 - Override defaults with `-var 'instance_type=t3.small'` or by creating a `packer.auto.pkrvars.hcl`.
 - Adjust `source_ami_filter` if you prefer AL2, Ubuntu, etc.
 - Extend `packer-provision.sh` with extra steps (install New Relic agent, copy baked assets, etc.).
+- Provide the New Relic license key at deploy time by editing `/etc/newrelic-infra.env` (baked by the provisioner) before enabling the service.
 
 ## Cleanup
 

@@ -17,6 +17,35 @@ log "Installing runtime dependencies"
 sudo ${PKG_MGR} install -y nginx python3 python3-pip unzip rsync git
 sudo ${PKG_MGR} systemctl enable nginx
 
+log "Adding New Relic Infrastructure agent repository"
+sudo rpm --import https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
+sudo tee /etc/yum.repos.d/newrelic-infra.repo >/dev/null <<'REPO'
+[newrelic-infra]
+name=New Relic Infrastructure
+baseurl=https://download.newrelic.com/infrastructure_agent/linux/yum/el/8/$basearch
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg
+enabled=1
+REPO
+
+log "Installing New Relic Infrastructure agent"
+sudo ${PKG_MGR} install -y newrelic-infra
+
+log "Configuring New Relic agent for deployment-time license injection"
+sudo mkdir -p /etc/systemd/system/newrelic-infra.service.d
+sudo tee /etc/systemd/system/newrelic-infra.service.d/override.conf >/dev/null <<'OVERRIDE'
+[Service]
+EnvironmentFile=-/etc/newrelic-infra.env
+OVERRIDE
+
+sudo tee /etc/newrelic-infra.env >/dev/null <<'ENV'
+# Populate NEW_RELIC_LICENSE_KEY before enabling the agent
+# e.g. NEW_RELIC_LICENSE_KEY=nr-license-key-goes-here
+ENV
+
+sudo systemctl disable newrelic-infra || true
+
 log "Preparing directories for frontend and backend"
 sudo mkdir -p /var/www/mywebsite
 sudo chown ec2-user:ec2-user /var/www/mywebsite

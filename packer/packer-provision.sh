@@ -15,7 +15,7 @@ sudo ${PKG_MGR} -y update
 
 log "Installing runtime dependencies"
 sudo ${PKG_MGR} install -y nginx python3 python3-pip unzip rsync git
-sudo ${PKG_MGR} systemctl enable nginx
+sudo systemctl enable nginx
 
 log "Adding New Relic Infrastructure agent repository"
 sudo rpm --import https://download.newrelic.com/infrastructure_agent/gpg/newrelic-infra.gpg

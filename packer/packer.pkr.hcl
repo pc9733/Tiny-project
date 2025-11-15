@@ -66,7 +66,15 @@ build {
     destination = "/tmp/packer-provision.sh"
   }
 
+  provisioner "file" {
+    source      = "../"
+    destination = "/tmp/companies-app-src"
+  }
+
   provisioner "shell" {
+    environment_vars = [
+      "AWS_REGION=${var.aws_region}"
+    ]
     inline = [
       "chmod +x /tmp/packer-provision.sh",
       "sudo /tmp/packer-provision.sh"

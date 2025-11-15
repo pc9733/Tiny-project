@@ -12,13 +12,29 @@ on:
         default: main
 
 jobs:
-  deploy:
+  ec2:
     runs-on: ubuntu-latest
     environment: Tiny-project
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Derive version
+        id: version
+        run: |
+          VERSION="$(cat VERSION 2>/dev/null || echo 0.0.0)"
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build release tarball
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar czf "dist/companies-app-${{ steps.version.outputs.value }}.tar.gz" \
+            --exclude ".git" \
+            --exclude "dist" \
+            --exclude ".github" \
+            .
 
       - name: Configure SSH (write key + known_hosts)
         run: |
@@ -35,6 +51,8 @@ jobs:
             -e "ssh -i ~/.ssh/id_ed25519" \
             ./ \
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/mywebsite/
+          scp -i ~/.ssh/id_ed25519 dist/companies-app-${{ steps.version.outputs.value }}.tar.gz \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/
 
       - name: Move into Nginx root and reload
         run: |

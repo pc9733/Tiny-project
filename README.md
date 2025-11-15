@@ -28,6 +28,7 @@ This repository contains everything required to run the Companies CRUD web app o
   export APP_VERSION="$(cat VERSION)"
   ```
 - To override at runtime (e.g., blue/green tests), set `APP_VERSION` in the systemd unit or environment before restarting `companies-api`.
+- GitHub Actions’ deploy workflow now packages the entire repository into `dist/companies-app-<version>.tar.gz` before uploading to the EC2 host, giving you a versioned artifact that can be archived or reused for future automation (e.g., storing in S3 before CodeDeploy).
 
 ## How it works
 

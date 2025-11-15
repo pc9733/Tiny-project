@@ -17,6 +17,17 @@ This repository contains everything required to run the Companies CRUD web app o
 | `Terraform/` | Root Terraform stack plus `modules/companies_app` (IAM role, launch template, EC2 host). |
 | `packer/` | `packer.pkr.hcl` template and `packer-provision.sh` script to bake the base AMI. |
 | `.github/workflows/` | `deploy.yml` syncs the site/backend to EC2; `packer-build.yml` (see repo) bakes AMIs in CI. |
+| `VERSION` | Single source of truth for the app version (semantic versioning). |
+
+## Versioning
+
+- The repository root contains a `VERSION` file (Semantic Versioning). Bump it as part of each release (e.g., `1.1.0`).
+- The Flask API exposes `/version` and also embeds `version` in `/health`; both read from the file (or the `APP_VERSION` env var if you override it during deployments).
+- Deployment pipelines can `cat VERSION` to tag artifacts or annotate GitHub releases. Example:
+  ```bash
+  export APP_VERSION="$(cat VERSION)"
+  ```
+- To override at runtime (e.g., blue/green tests), set `APP_VERSION` in the systemd unit or environment before restarting `companies-api`.
 
 ## How it works
 

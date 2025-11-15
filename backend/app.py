@@ -1,10 +1,19 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import boto3, os, uuid, datetime
+from pathlib import Path
 from boto3.dynamodb.conditions import Key
 
 TABLE_NAME = os.getenv("TABLE_NAME", "companies")
 REGION = os.getenv("AWS_REGION", "us-east-1")
+APP_VERSION = os.getenv("APP_VERSION")
+
+if not APP_VERSION:
+    version_file = Path(__file__).resolve().parents[1] / "VERSION"
+    try:
+        APP_VERSION = version_file.read_text().strip()
+    except FileNotFoundError:
+        APP_VERSION = "0.0.0"
 
 dynamodb = boto3.resource("dynamodb", region_name=REGION)
 table = dynamodb.Table(TABLE_NAME)
@@ -46,7 +55,11 @@ def normalize_payload(data, partial=False):
 
 @app.get("/health")
 def health():
-    return {"ok": True}, 200
+    return {"ok": True, "version": APP_VERSION}, 200
+
+@app.get("/version")
+def version():
+    return {"version": APP_VERSION}, 200
 
 @app.get("/api/companies")
 def list_companies():

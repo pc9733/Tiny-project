@@ -16,7 +16,8 @@ This repository contains everything required to run the Companies CRUD web app o
 | `backend/` | Flask API (`app.py`), systemd unit, and Python requirements. Uses boto3 to access DynamoDB. |
 | `Terraform/` | Root Terraform stack plus `modules/companies_app` (IAM role, launch template, EC2 host). |
 | `packer/` | `packer.pkr.hcl` template and `packer-provision.sh` script to bake the base AMI. |
-| `.github/workflows/` | `deploy.yml` syncs the site/backend to EC2; `packer-build.yml` (see repo) bakes AMIs in CI. |
+| `codedeploy/` | `appspec.yml` plus lifecycle scripts used by AWS CodeDeploy to fan out releases to every EC2 instance. |
+| `.github/workflows/` | `ci.yml` runs unit/infrastructure tests on push/PR; `deploy.yml` packages and ships releases via CodeDeploy. |
 | `VERSION` | Single source of truth for the app version (semantic versioning). |
 
 ## Versioning
@@ -28,18 +29,40 @@ This repository contains everything required to run the Companies CRUD web app o
   export APP_VERSION="$(cat VERSION)"
   ```
 - To override at runtime (e.g., blue/green tests), set `APP_VERSION` in the systemd unit or environment before restarting `companies-api`.
-- GitHub Actions’ deploy workflow now packages the entire repository into `dist/companies-app-<version>.tar.gz` before uploading to the EC2 host, giving you a versioned artifact that can be archived or reused for future automation (e.g., storing in S3 before CodeDeploy).
+- GitHub Actions’ deploy workflow packages the repository into `companies-app-<version>.zip`, stores it as a build artifact, uploads it to S3, and lets CodeDeploy install that specific version across the Auto Scaling Group.
+
+## CI/CD workflows
+
+- `CI` (`.github/workflows/ci.yml`): runs on every push/PR. It compiles the Flask backend, runs Terraform fmt/validate, and performs `packer validate` to catch infrastructure regressions early.
+- `Deploy via CodeDeploy` (`.github/workflows/deploy.yml`): manual `workflow_dispatch`. The pipeline checks out the requested branch, runs backend sanity tests, builds the release zip (containing `web/`, `backend/`, `scripts/`, `VERSION`, and `appspec.yml`), uploads it to S3, and triggers an AWS CodeDeploy deployment targeting the Auto Scaling Group. CodeDeploy then executes the lifecycle scripts from `codedeploy/scripts/` on every instance (stop services, copy files, install deps, restart, and `curl /health`).
+
+### Required secrets for deploy workflow
+
+| Secret | Purpose |
+| --- | --- |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` | Credentials used by GitHub Actions for S3 + CodeDeploy API calls. |
+| `CODEDEPLOY_BUCKET` | S3 bucket where release zips are uploaded (e.g., `companies-artifacts`). |
+| `CODEDEPLOY_APPLICATION` | Name of the CodeDeploy application (must target the EC2/On-Prem platform). |
+| `CODEDEPLOY_DEPLOYMENT_GROUP` | CodeDeploy deployment group that references the Auto Scaling Group provisioned by Terraform. |
+
+### Release artifact layout
+
+```
+companies-app-<version>.zip
+├── appspec.yml
+├── backend/            # Flask API, systemd service, requirements.txt
+├── scripts/            # CodeDeploy lifecycle hooks
+├── VERSION
+└── web/                # index.html, location.html, assets/
+```
+
+Each hook script is idempotent—the `BeforeInstall` script stops services and cleans directories, `AfterInstall` installs Python deps, `ApplicationStart` restarts nginx + Gunicorn, and `ValidateService` pings `/health`.
 
 ## How it works
 
 1. **Infrastructure**: Terraform provisions the DynamoDB table, VPC/subnet, security group, IAM role, and an EC2 instance launched via a template that injects environment variables plus New Relic license data (user data leverages SSM parameter `/observability/newrelic/license_key`). The EC2 role has DynamoDB CRUD permissions and permission to read that SSM parameter.
-2. **Base image**: Packer builds an Amazon Linux 2023 AMI with nginx, Python3, rsync, git, New Relic agent (disabled), and pre-created directories for `/var/www/mywebsite` and `/home/ec2-user/companies-api`.
-3. **Deploy pipeline**: The GitHub deploy workflow (`.github/workflows/deploy.yml`) runs on demand (`workflow_dispatch`). Steps:
-   - Checkout repo.
-   - Configure SSH using repo secrets `EC2_SSH_KEY`, `EC2_HOST`, `EC2_USER`.
-   - Rsync the entire repo to `/tmp/mywebsite/` on the EC2 host.
-   - Install/refresh nginx config (proxying `/api/` to 127.0.0.1:8000) and reload nginx.
-   - Sync `backend/` to `~/companies-api`, install Python deps in the venv, copy the systemd service, and restart `companies-api`.
+2. **Base image**: Packer builds an Amazon Linux 2023 AMI with nginx, Python3, rsync, git, the AWS CodeDeploy agent, the New Relic agent (disabled), and pre-created directories for `/var/www/mywebsite` plus `/home/ec2-user/companies-api`.
+3. **Deploy pipeline**: GitHub Actions builds a versioned release zip, uploads it to S3, and creates a CodeDeploy deployment that targets the Auto Scaling Group. The CodeDeploy hooks run on every instance (stop services, copy files, install deps, restart, verify `/health`), so scaling events automatically receive the same build.
 4. **Runtime**: nginx serves the static front-end and proxies API calls to Gunicorn (running the Flask app). The Flask API talks to DynamoDB using credentials inherited from the instance role.
 
 ## Local development
@@ -83,14 +106,9 @@ Provide AWS credentials with AMI build permissions. The resulting AMI should mat
 
 ## GitHub secrets / inputs
 
-| Secret / Input | Purpose |
-| --- | --- |
-| `EC2_SSH_KEY` | Base64-encoded or literal private key used for rsync/ssh during deploy. |
-| `EC2_HOST` | Public hostname/IP of the EC2 instance. |
-| `EC2_USER` | SSH username (default `ec2-user`). |
-| Workflow input `target_branch` | Choose branch to deploy (`main` or `develop`). |
-
-Ensure AWS creds for Packer workflow (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) exist if you run `packer-build.yml`.
+- `aws-actions/configure-aws-credentials` expects `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION`.
+- The deploy workflow also needs `CODEDEPLOY_BUCKET`, `CODEDEPLOY_APPLICATION`, and `CODEDEPLOY_DEPLOYMENT_GROUP`.
+- Manual `workflow_dispatch` input `target_branch` controls which branch is packaged (defaults to `main`).
 
 ## Smoke tests after deploy
 

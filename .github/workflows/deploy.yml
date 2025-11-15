@@ -1,10 +1,10 @@
-name: Deploy to EC2 (Nginx)
+name: Deploy via CodeDeploy
 
 on:
   workflow_dispatch:
     inputs:
       target_branch:
-        description: "Branch to run against"
+        description: "Branch to deploy"
         type: choice
         options:
           - main
@@ -12,13 +12,34 @@ on:
         default: main
 
 jobs:
-  ec2:
+  build:
     runs-on: ubuntu-latest
-    environment: Tiny-project
+    outputs:
+      version: ${{ steps.version.outputs.value }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: refs/heads/${{ inputs.target_branch }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Backend sanity tests
+        run: python -m compileall backend
+
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y zip rsync
 
       - name: Derive version
         id: version
@@ -26,101 +47,82 @@ jobs:
           VERSION="$(cat VERSION 2>/dev/null || echo 0.0.0)"
           echo "value=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Build release tarball
+      - name: Build release bundle
         run: |
           set -euo pipefail
-          mkdir -p dist
-          tar czf "dist/companies-app-${{ steps.version.outputs.value }}.tar.gz" \
-            --exclude ".git" \
-            --exclude "dist" \
-            --exclude ".github" \
-            .
+          VERSION="${{ steps.version.outputs.value }}"
+          STAGING="release"
+          DIST="dist"
+          rm -rf "$STAGING" "$DIST"
+          mkdir -p "$STAGING/web" "$STAGING/web/assets" "$STAGING/backend" "$STAGING/scripts" "$DIST"
 
-      - name: Configure SSH (write key + known_hosts)
+          cp index.html "$STAGING/web/"
+          cp location.html "$STAGING/web/"
+          rsync -av assets/ "$STAGING/web/assets/" >/dev/null
+
+          rsync -av backend/ "$STAGING/backend/" >/dev/null
+          cp VERSION "$STAGING/VERSION"
+          cp codedeploy/appspec.yml "$STAGING/appspec.yml"
+          rsync -av codedeploy/scripts/ "$STAGING/scripts/" >/dev/null
+
+          pushd "$STAGING" >/dev/null
+          zip -r "../$DIST/companies-app-${VERSION}.zip" . >/dev/null
+          popd >/dev/null
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: dist/companies-app-${{ steps.version.outputs.value }}.zip
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: Tiny-project
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload bundle to S3
+        id: upload
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          CODEDEPLOY_BUCKET: ${{ secrets.CODEDEPLOY_BUCKET }}
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf "Host *\n\tStrictHostKeyChecking no\n" > ~/.ssh/config
+          set -euo pipefail
+          ARTIFACT="dist/companies-app-${VERSION}.zip"
+          S3_KEY="companies-app/${VERSION}/companies-app-${VERSION}.zip"
+          aws s3 cp "$ARTIFACT" "s3://${CODEDEPLOY_BUCKET}/${S3_KEY}"
+          echo "s3_key=$S3_KEY" >> "$GITHUB_OUTPUT"
 
-      - name: Sync site files to EC2 (/tmp)
+      - name: Create CodeDeploy deployment
+        id: deploy
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          CODEDEPLOY_BUCKET: ${{ secrets.CODEDEPLOY_BUCKET }}
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y rsync
-          rsync -avz --delete \
-            -e "ssh -i ~/.ssh/id_ed25519" \
-            ./ \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/mywebsite/
-          scp -i ~/.ssh/id_ed25519 dist/companies-app-${{ steps.version.outputs.value }}.tar.gz \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/
+          set -euo pipefail
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name "${{ secrets.CODEDEPLOY_APPLICATION }}" \
+            --deployment-group-name "${{ secrets.CODEDEPLOY_DEPLOYMENT_GROUP }}" \
+            --deployment-config-name CodeDeployDefault.AllAtOnce \
+            --s3-location bucket=${CODEDEPLOY_BUCKET},key=${{ steps.upload.outputs.s3_key }},bundleType=zip \
+            --description "Deploy ${VERSION} from ${GITHUB_SHA}" \
+            --query "deploymentId" \
+            --output text)
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Move into Nginx root and reload
+      - name: Wait for deployment
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<'EOF'
-          set -e
-          if ! command -v nginx >/dev/null 2>&1; then
-            sudo dnf install -y nginx
-            sudo systemctl enable --now nginx
-          fi
-          if ! command -v rsync >/dev/null 2>&1; then
-            sudo dnf install -y rsync
-          fi
-          sudo mkdir -p /var/www/mywebsite
-          sudo rsync -av --delete /tmp/mywebsite/ /var/www/mywebsite/
-          sudo chown -R nginx:nginx /var/www/mywebsite
-          sudo tee /etc/nginx/conf.d/mywebsite.conf >/dev/null <<'CONF'
-          server {
-              listen 80;
-              server_name _;
-              root /var/www/mywebsite;
-              index index.html;
-              access_log /var/log/nginx/mywebsite.access.log;
-              error_log  /var/log/nginx/mywebsite.error.log;
-
-              location / {
-                  try_files $uri $uri/ =404;
-              }
-
-              location /api/ {
-                  proxy_pass http://127.0.0.1:8000;
-                  proxy_set_header Host $host;
-                  proxy_set_header X-Real-IP $remote_addr;
-                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $scheme;
-                  proxy_redirect off;
-              }
-          }
-          CONF
-          sudo nginx -t
-          sudo systemctl reload nginx
-          EOF
- # --- Backend: sync to /home/ec2-user/companies-api and (re)start service ---
-      - name: Sync backend
-        if: hashFiles('backend/**') != ''
-        run: |
-          rsync -avz -e "ssh -i ~/.ssh/id_ed25519" \
-            backend/ \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/home/ec2-user/companies-api-sync/
-
-      - name: Install backend deps + restart service
-        if: hashFiles('backend/**') != ''
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<'EOS'
-          set -e
-          # materialize working dir
-          mkdir -p ~/companies-api
-          rsync -av --delete ~/companies-api-sync/ ~/companies-api/
-
-          # python venv
-          if [ ! -d ~/companies-api/venv ]; then
-            python3 -m venv ~/companies-api/venv
-          fi
-          source ~/companies-api/venv/bin/activate
-          pip install --upgrade pip
-          pip install -r ~/companies-api/requirements.txt
-
-          # install/refresh systemd unit
-          sudo cp ~/companies-api/companies-api.service /etc/systemd/system/companies-api.service
-          sudo systemctl daemon-reload
-          sudo systemctl enable --now companies-api || sudo systemctl restart companies-api
-          EOS
+          aws deploy wait deployment-successful --deployment-id "${{ steps.deploy.outputs.deployment_id }}"

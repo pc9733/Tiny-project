@@ -1,9 +1,9 @@
-output "instance_id" {
-  description = "ID of the EC2 instance hosting the application."
-  value       = aws_instance.this.id
+output "autoscaling_group_name" {
+  description = "Name of the Auto Scaling Group managing the application instances."
+  value       = aws_autoscaling_group.this.name
 }
 
-output "instance_public_ip" {
-  description = "Public IPv4 address of the EC2 instance."
-  value       = aws_instance.this.public_ip
+output "launch_template_id" {
+  description = "ID of the launch template used by the Auto Scaling Group."
+  value       = aws_launch_template.this.id
 }

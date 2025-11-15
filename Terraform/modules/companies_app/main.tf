@@ -1,5 +1,46 @@
 locals {
   common_name = "companies-app"
+
+  newrelic_user_data = <<-EOT
+    #!/bin/bash
+    set -ex
+
+    PKG_MGR="yum"
+    if command -v dnf >/dev/null 2>&1; then
+      PKG_MGR="dnf"
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+      sudo "$PKG_MGR" install -y jq
+    fi
+
+    TOKEN=$(curl -fsX PUT "http://169.254.169.254/latest/api/token" \
+      -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+    REGION="$(curl -fs http://169.254.169.254/latest/dynamic/instance-identity/document \
+      -H "X-aws-ec2-metadata-token: $TOKEN" | jq -r .region)"
+
+    NR_LICENSE=$(aws ssm get-parameter \
+      --with-decryption \
+      --region "$REGION" \
+      --name "/observability/newrelic/license_key" \
+      --query "Parameter.Value" \
+      --output text)
+
+    sudo tee /etc/newrelic-infra.yml >/dev/null <<EOF
+    license_key: $NR_LICENSE
+    display_name: $(hostname)
+    EOF
+
+    sudo systemctl enable newrelic-infra
+    sudo systemctl restart newrelic-infra
+  EOT
+
+  combined_user_data_parts = compact([
+    trimspace(var.user_data),
+    trimspace(local.newrelic_user_data),
+  ])
+
+  final_user_data = length(local.combined_user_data_parts) > 0 ? join("\n\n", local.combined_user_data_parts) : ""
 }
 
 data "aws_iam_policy_document" "ec2_trust" {
@@ -36,6 +77,21 @@ data "aws_iam_policy_document" "dynamo_access" {
   }
 }
 
+data "aws_iam_policy_document" "nr_ssm" {
+  statement {
+    sid    = "ReadNewRelicLicense"
+    effect = "Allow"
+
+    actions = [
+      "ssm:GetParameter",
+    ]
+
+    resources = [
+      "arn:aws:ssm:us-east-1:561067235272:parameter/observability/newrelic/license_key",
+    ]
+  }
+}
+
 data "aws_ami" "packer" {
   owners      = ["self"]
   most_recent = true
@@ -61,6 +117,12 @@ resource "aws_iam_role_policy" "this" {
   name   = "${local.common_name}-dynamo-access"
   role   = aws_iam_role.this.id
   policy = data.aws_iam_policy_document.dynamo_access.json
+}
+
+resource "aws_iam_role_policy" "nr_ssm" {
+  name   = "${local.common_name}-nr-ssm"
+  role   = aws_iam_role.this.id
+  policy = data.aws_iam_policy_document.nr_ssm.json
 }
 
 resource "aws_iam_instance_profile" "this" {
@@ -101,20 +163,57 @@ resource "aws_security_group" "this" {
   })
 }
 
-resource "aws_instance" "this" {
-  ami                         = data.aws_ami.packer.id
-  instance_type               = var.instance_type
-  subnet_id                   = var.subnet_id
-  vpc_security_group_ids      = [aws_security_group.this.id]
-  associate_public_ip_address = true
+resource "aws_launch_template" "this" {
+  name_prefix   = "${local.common_name}-lt-"
+  image_id      = data.aws_ami.packer.id
+  instance_type = var.instance_type
+  key_name      = var.key_name != "" ? var.key_name : null
 
-  iam_instance_profile = aws_iam_instance_profile.this.name
-  key_name             = var.key_name != "" ? var.key_name : null
-  user_data            = var.user_data
+  iam_instance_profile {
+    name = aws_iam_instance_profile.this.name
+  }
 
-  tags = merge(var.common_tags, {
-    Name = local.common_name
-  })
+  vpc_security_group_ids = [aws_security_group.this.id]
 
-  depends_on = [aws_iam_role_policy.this]
+  user_data = base64encode(local.final_user_data)
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_autoscaling_group" "this" {
+  name                      = "${local.common_name}-asg-${var.environment}"
+  desired_capacity          = var.asg_desired_capacity
+  min_size                  = var.asg_min_size
+  max_size                  = var.asg_max_size
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
+  vpc_zone_identifier       = var.subnet_ids
+  force_delete              = true
+
+  launch_template {
+    id      = aws_launch_template.this.id
+    version = "$Latest"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = local.common_name
+    propagate_at_launch = true
+  }
+
+  dynamic "tag" {
+    for_each = var.common_tags
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
+  }
+
+  depends_on = [
+    aws_iam_role_policy.this,
+    aws_iam_role_policy.nr_ssm,
+  ]
 }

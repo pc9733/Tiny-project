@@ -3,12 +3,12 @@ output "dynamodb_table_name" {
   value       = aws_dynamodb_table.companies.name
 }
 
-output "instance_id" {
-  description = "ID of the EC2 instance running the app."
-  value       = module.companies_app.instance_id
+output "autoscaling_group_name" {
+  description = "Auto Scaling Group managing the app instances."
+  value       = module.companies_app.autoscaling_group_name
 }
 
-output "instance_public_ip" {
-  description = "Public IPv4 address for quick access."
-  value       = module.companies_app.instance_public_ip
+output "launch_template_id" {
+  description = "Launch template used by the Auto Scaling Group."
+  value       = module.companies_app.launch_template_id
 }

@@ -86,13 +86,16 @@ module "companies_app" {
   location_index_name  = var.location_index_name
   ami_name_prefix      = var.ami_name_prefix
   instance_type        = var.instance_type
-  subnet_id            = aws_subnet.public.id
+  subnet_ids           = [aws_subnet.public.id]
   vpc_id               = aws_vpc.main.id
   key_name             = var.key_name
   allowed_ssh_cidr     = var.allowed_ssh_cidr
   allowed_http_cidr    = var.allowed_http_cidr
   common_tags          = local.common_tags
-  user_data            = templatefile("${path.module}/terraform-user-data.sh.tpl", {
+  asg_desired_capacity = var.asg_desired_capacity
+  asg_min_size         = var.asg_min_size
+  asg_max_size         = var.asg_max_size
+  user_data = templatefile("${path.module}/terraform-user-data.sh.tpl", {
     table_name = aws_dynamodb_table.companies.name
     aws_region = var.aws_region
   })

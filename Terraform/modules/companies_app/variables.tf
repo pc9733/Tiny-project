@@ -29,9 +29,9 @@ variable "instance_type" {
   type        = string
 }
 
-variable "subnet_id" {
-  description = "Subnet ID where the instance should launch."
-  type        = string
+variable "subnet_ids" {
+  description = "Subnet IDs where the Auto Scaling Group can launch instances."
+  type        = list(string)
 }
 
 variable "vpc_id" {
@@ -63,4 +63,22 @@ variable "common_tags" {
 variable "user_data" {
   description = "Rendered user data script for bootstrapping the instance."
   type        = string
+}
+
+variable "asg_desired_capacity" {
+  description = "Desired number of instances for the Auto Scaling Group."
+  type        = number
+  default     = 1
+}
+
+variable "asg_min_size" {
+  description = "Minimum number of instances for the Auto Scaling Group."
+  type        = number
+  default     = 1
+}
+
+variable "asg_max_size" {
+  description = "Maximum number of instances for the Auto Scaling Group."
+  type        = number
+  default     = 1
 }

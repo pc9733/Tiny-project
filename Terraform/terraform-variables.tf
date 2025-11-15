@@ -63,3 +63,21 @@ variable "allowed_http_cidr" {
   type        = string
   default     = "0.0.0.0/0"
 }
+
+variable "asg_desired_capacity" {
+  description = "Desired number of EC2 instances running the Companies app."
+  type        = number
+  default     = 1
+}
+
+variable "asg_min_size" {
+  description = "Minimum number of EC2 instances in the Auto Scaling Group."
+  type        = number
+  default     = 1
+}
+
+variable "asg_max_size" {
+  description = "Maximum number of EC2 instances in the Auto Scaling Group."
+  type        = number
+  default     = 1
+}

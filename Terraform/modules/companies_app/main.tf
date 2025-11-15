@@ -14,7 +14,10 @@ locals {
       sudo "$PKG_MGR" install -y jq
     fi
 
-    REGION="$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region)"
+    TOKEN=$(curl -fsX PUT "http://169.254.169.254/latest/api/token" \
+      -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+    REGION="$(curl -fs http://169.254.169.254/latest/dynamic/instance-identity/document \
+      -H "X-aws-ec2-metadata-token: $TOKEN" | jq -r .region)"
 
     NR_LICENSE=$(aws ssm get-parameter \
       --with-decryption \
@@ -84,7 +87,7 @@ data "aws_iam_policy_document" "nr_ssm" {
     ]
 
     resources = [
-      "arn:aws:ssm:*:*:parameter/observability/newrelic/license_key",
+      "arn:aws:ssm:us-east-1:561067235272:parameter/observability/newrelic/license_key",
     ]
   }
 }
@@ -179,17 +182,35 @@ resource "aws_launch_template" "this" {
   }
 }
 
-resource "aws_instance" "this" {
-  subnet_id = var.subnet_id
+resource "aws_autoscaling_group" "this" {
+  name                      = "${local.common_name}-asg-${var.environment}"
+  desired_capacity          = var.asg_desired_capacity
+  min_size                  = var.asg_min_size
+  max_size                  = var.asg_max_size
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
+  vpc_zone_identifier       = var.subnet_ids
+  force_delete              = true
 
   launch_template {
     id      = aws_launch_template.this.id
     version = "$Latest"
   }
 
-  tags = merge(var.common_tags, {
-    Name = local.common_name
-  })
+  tag {
+    key                 = "Name"
+    value               = local.common_name
+    propagate_at_launch = true
+  }
+
+  dynamic "tag" {
+    for_each = var.common_tags
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
+  }
 
   depends_on = [
     aws_iam_role_policy.this,
